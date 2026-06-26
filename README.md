@@ -147,16 +147,6 @@ The application will be accessible at `http://localhost:5173`.
 5. **Storage**: The report is saved to MongoDB.
 6. **Review**: The user views their personalized dashboard on the frontend. They can also choose to generate a newly tailored PDF resume based on the AI's suggestions.
 
-## Screenshots
-
-### Home Dashboard
-![Home Dashboard Placeholder](/path/to/home-screenshot.png)
-*Description: The main dashboard where users input job descriptions and upload resumes.*
-
-### Interview Report
-![Interview Report Placeholder](/path/to/report-screenshot.png)
-*Description: The generated report showing the match score, technical questions, and preparation roadmap.*
-
 ## Future Improvements
 * Add OAuth (Google/GitHub) authentication.
 * Implement a mock interview feature using speech to text AI.
@@ -168,9 +158,6 @@ The application will be accessible at `http://localhost:5173`.
 * **AI Generation Fails (503/500 Error)**: Ensure your `GOOGLE_GENAI_API_KEY` is valid and has sufficient quota. The application gracefully degrades and will prompt you to try again.
 * **CORS Errors**: Ensure the `FRONTEND_URL` in the backend `.env` matches the exact URL where your frontend is running.
 * **PDF Generation Fails**: Puppeteer requires certain system libraries to launch Chromium. If deploying on a minimal Linux server, you may need to install additional system dependencies.
-
-## License
-This project is licensed under the ISC License. See the package.json for details.
 
 ## Author
 Developed by Anjali Sinha.
