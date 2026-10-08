@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import '../style/interview.scss'
+import '../style/home.scss'
 import { useInterview } from '../hooks/useInterview.js'
 import { useNavigate, useParams } from 'react-router'
+import { getMatchScoreLabel } from '../utils/matchScore.js'
 
 
 
@@ -166,7 +167,7 @@ const Interview = () => {
                             <span className='match-score__value'>{report.matchScore}</span>
                             <span className='match-score__pct'>%</span>
                         </div>
-                        <p className='match-score__sub'>Strong match for this role</p>
+                        <p className='match-score__sub'>{getMatchScoreLabel(report.matchScore)}</p>
                     </div>
 
                     <div className='sidebar-divider' />
