@@ -1,15 +1,21 @@
 require('dotenv').config();
+const { loadConfig, ConfigError } = require('./src/v2/config/env');
+
+let config;
+try {
+  config = loadConfig(process.env);
+} catch (err) {
+  if (err instanceof ConfigError) {
+    console.error(`\n❌ Fatal Startup Error: Invalid Configuration\n${err.message}\n`);
+    process.exit(1);
+  }
+  throw err;
+}
+
 const app = require('./src/app');
 const connectDB = require('./src/config/database');
 
-const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
-const missingEnvVars = requiredEnvVars.filter((variable) => !process.env[variable]);
-const PORT = process.env.PORT || 3000;
-
-if (missingEnvVars.length > 0) {
-  console.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
-  process.exit(1);
-}
+const PORT = config.PORT;
 
 async function startServer() {
   await connectDB();
