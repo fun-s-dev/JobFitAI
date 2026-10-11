@@ -1,18 +1,17 @@
 {
-  "_note": "PLACEHOLDER: Hand-written fixture created during M1 build. Overwrite with live data by running: node scripts/smoke-gemini.js",
   "sampleText": "Senior Node.js and React developer with 5 years of industry experience.",
   "dimensions": 768,
   "norm": 1,
   "preview": [
-    0.015,
-    -0.032,
-    0.041,
-    0.009,
-    -0.018,
-    0.024,
-    -0.055,
-    0.012,
-    0.038,
-    -0.007
+    -0.012556360732920057,
+    0.01375572009656228,
+    0.00467671167741447,
+    -0.12407092912104023,
+    -0.01429019151706899,
+    0.01939320660832978,
+    0.033860580237560514,
+    0.025945469731255225,
+    0.0011349072314395432,
+    0.016940899933145664
   ]
 }

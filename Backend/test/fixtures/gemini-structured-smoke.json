@@ -1,11 +1,8 @@
 {
-  "_note": "PLACEHOLDER: Hand-written fixture created during M1 build. Overwrite with live data by running: node scripts/smoke-gemini.js",
   "role": "Senior Node.js and React Developer",
   "skills": [
     "Node.js",
-    "React",
-    "JavaScript",
-    "Full-Stack Development"
+    "React"
   ],
   "estimatedYears": 5
 }
