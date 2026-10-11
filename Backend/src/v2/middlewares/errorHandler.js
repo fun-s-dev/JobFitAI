@@ -7,10 +7,24 @@
 function errorHandler(err, req, res, _next) {
   const requestId = req.id || req.headers['x-request-id'] || 'unknown';
   const statusCode = err.statusCode || err.status || 500;
-  const code = err.code || err.name || 'INTERNAL_ERROR';
-  const message = (statusCode >= 500 && process.env.NODE_ENV === 'production')
-    ? 'An internal server error occurred'
-    : (err.message || 'An unexpected error occurred');
+  let code = err.code || err.name || 'INTERNAL_ERROR';
+
+  if (statusCode === 503 && (code === 'INTERNAL_ERROR' || code === 'Error')) {
+    code = 'SERVICE_UNAVAILABLE';
+  } else if (statusCode === 502 && (code === 'INTERNAL_ERROR' || code === 'Error')) {
+    code = 'BAD_GATEWAY';
+  }
+
+  let message;
+  if (statusCode === 503) {
+    message = 'Upstream AI service is temporarily unavailable. Please try again later.';
+  } else if (statusCode === 502) {
+    message = 'Bad gateway: upstream AI service failed to complete the request.';
+  } else if (statusCode >= 500 && process.env.NODE_ENV === 'production') {
+    message = 'An internal server error occurred';
+  } else {
+    message = err.message || 'An unexpected error occurred';
+  }
 
   if (req.log && typeof req.log.error === 'function') {
     req.log.error({ err, requestId, statusCode, code }, 'v2 request error');

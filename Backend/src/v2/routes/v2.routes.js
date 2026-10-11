@@ -14,7 +14,12 @@ router.get('/health', (req, res) => {
   });
 });
 
+// Drafts endpoints
+const draftRouter = require('./draft.routes');
+router.use('/drafts', draftRouter);
+
 // v2 Not Found handler for unknown /api/v2 routes
+
 router.use(notFoundHandler);
 
 // v2 Router-scoped Error Handler

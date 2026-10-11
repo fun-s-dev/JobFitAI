@@ -30,7 +30,11 @@ const envSchema = z
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
+    RATE_LIMIT_DRAFT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+    RATE_LIMIT_DRAFT_MAX: z.coerce.number().int().positive().default(10),
+    PUPPETEER_NO_SANDBOX: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(false),
   })
+
   .refine(
     (data) => data.THRESHOLD_VERIFIED > data.THRESHOLD_REVIEW,
     {

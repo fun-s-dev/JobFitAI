@@ -1,0 +1,625 @@
+[
+  {
+    "id": "exp0.b0",
+    "bulletText": "Architected an event-driven notification service using RabbitMQ and Node.js, slashing message delivery time by 35% across 2M daily notifications.",
+    "expectedClaimCount": 4,
+    "goldenClaims": [
+      {
+        "bulletId": "exp0.b0",
+        "claimText": "Candidate architected an event-driven notification service",
+        "claimType": "leadership",
+        "skills": ["Event-Driven Architecture"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp0.b0",
+        "claimText": "Candidate built the notification service using RabbitMQ and Node.js",
+        "claimType": "technology",
+        "skills": ["RabbitMQ", "Node.js"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp0.b0",
+        "claimText": "Message delivery time was slashed by 35%",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["35%"]
+      },
+      {
+        "bulletId": "exp0.b0",
+        "claimText": "The notification service handled 2M daily notifications",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["2M"]
+      }
+    ]
+  },
+  {
+    "id": "exp0.b1",
+    "bulletText": "Designed and deployed RESTful APIs using Express and MongoDB, serving 500k monthly active users with 99.9% uptime.",
+    "expectedClaimCount": 4,
+    "goldenClaims": [
+      {
+        "bulletId": "exp0.b1",
+        "claimText": "Candidate designed and deployed RESTful APIs",
+        "claimType": "responsibility",
+        "skills": ["REST APIs"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp0.b1",
+        "claimText": "Candidate implemented backend APIs using Express and MongoDB",
+        "claimType": "technology",
+        "skills": ["Express", "MongoDB"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp0.b1",
+        "claimText": "The APIs served 500k monthly active users",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["500k"]
+      },
+      {
+        "bulletId": "exp0.b1",
+        "claimText": "The service maintained 99.9% uptime",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["99.9%"]
+      }
+    ]
+  },
+  {
+    "id": "exp0.b2",
+    "bulletText": "Integrated Redis caching layer for session storage, reducing p95 database response latency by 45%.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "exp0.b2",
+        "claimText": "Candidate integrated Redis caching for session storage",
+        "claimType": "technology",
+        "skills": ["Redis"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp0.b2",
+        "claimText": "Database response latency was reduced by 45%",
+        "claimType": "outcome",
+        "skills": [],
+        "numbers": ["45%"]
+      },
+      {
+        "bulletId": "exp0.b2",
+        "claimText": "Latency improvement was measured at the p95 percentile",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["p95"]
+      }
+    ]
+  },
+  {
+    "id": "exp1.b0",
+    "bulletText": "Migrated legacy monolithic application to Docker and Kubernetes on AWS, cutting infrastructure costs by $150k annually.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "exp1.b0",
+        "claimText": "Candidate migrated monolithic application to Docker containers orchestrated by Kubernetes on AWS",
+        "claimType": "technology",
+        "skills": ["Docker", "Kubernetes", "AWS"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp1.b0",
+        "claimText": "Migration resulted in cutting infrastructure costs by $150k annually",
+        "claimType": "outcome",
+        "skills": [],
+        "numbers": ["$150k"]
+      },
+      {
+        "bulletId": "exp1.b0",
+        "claimText": "Candidate led migration of a legacy monolithic architecture",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "exp1.b1",
+    "bulletText": "Implemented JWT authentication with refresh token rotation and bcrypt password hashing.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "exp1.b1",
+        "claimText": "Candidate implemented JWT authentication",
+        "claimType": "technology",
+        "skills": ["JWT"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp1.b1",
+        "claimText": "Candidate implemented refresh token rotation mechanism",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp1.b1",
+        "claimText": "Candidate secured user passwords using bcrypt password hashing",
+        "claimType": "technology",
+        "skills": ["bcryptjs"],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "exp1.b2",
+    "bulletText": "Authored comprehensive unit and integration test suites using Vitest and Supertest, achieving 88% code coverage across 45 test files.",
+    "expectedClaimCount": 4,
+    "goldenClaims": [
+      {
+        "bulletId": "exp1.b2",
+        "claimText": "Candidate authored unit and integration test suites using Vitest and Supertest",
+        "claimType": "technology",
+        "skills": ["Vitest", "Supertest", "Unit Testing", "Integration Testing"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp1.b2",
+        "claimText": "Test suite achieved 88% code coverage",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["88%"]
+      },
+      {
+        "bulletId": "exp1.b2",
+        "claimText": "Test suite spanned 45 test files",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["45"]
+      },
+      {
+        "bulletId": "exp1.b2",
+        "claimText": "Candidate was responsible for test suite authoring",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "exp2.b0",
+    "bulletText": "Led a team of 5 junior engineers through agile sprints, delivering the v2 product 2 weeks ahead of schedule.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "exp2.b0",
+        "claimText": "Candidate led a team of 5 junior engineers through agile sprints",
+        "claimType": "leadership",
+        "skills": [],
+        "numbers": ["5"]
+      },
+      {
+        "bulletId": "exp2.b0",
+        "claimText": "Candidate delivered the v2 product 2 weeks ahead of schedule",
+        "claimType": "outcome",
+        "skills": [],
+        "numbers": ["2"]
+      },
+      {
+        "bulletId": "exp2.b0",
+        "claimText": "Candidate managed sprint delivery",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "exp2.b1",
+    "bulletText": "Built an automated CI/CD pipeline with GitHub Actions, accelerating release cycles from bi-weekly to 3x daily.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "exp2.b1",
+        "claimText": "Candidate built an automated CI/CD pipeline using GitHub Actions",
+        "claimType": "technology",
+        "skills": ["CI/CD", "GitHub Actions"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp2.b1",
+        "claimText": "Deployment frequency accelerated to 3x daily",
+        "claimType": "outcome",
+        "skills": [],
+        "numbers": ["3x"]
+      },
+      {
+        "bulletId": "exp2.b1",
+        "claimText": "Previous release cycles were bi-weekly",
+        "claimType": "other",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "prj0.b0",
+    "bulletText": "Engineered a GraphQL query federation gateway in TypeScript, consolidating 6 disparate microservices into 1 unified schema.",
+    "expectedClaimCount": 4,
+    "goldenClaims": [
+      {
+        "bulletId": "prj0.b0",
+        "claimText": "Candidate engineered a GraphQL query federation gateway",
+        "claimType": "technology",
+        "skills": ["GraphQL"],
+        "numbers": []
+      },
+      {
+        "bulletId": "prj0.b0",
+        "claimText": "Gateway was implemented in TypeScript",
+        "claimType": "technology",
+        "skills": ["TypeScript"],
+        "numbers": []
+      },
+      {
+        "bulletId": "prj0.b0",
+        "claimText": "Gateway consolidated 6 disparate microservices",
+        "claimType": "metric",
+        "skills": ["Microservices"],
+        "numbers": ["6"]
+      },
+      {
+        "bulletId": "prj0.b0",
+        "claimText": "Result was 1 unified schema",
+        "claimType": "outcome",
+        "skills": [],
+        "numbers": ["1"]
+      }
+    ]
+  },
+  {
+    "id": "prj0.b1",
+    "bulletText": "Constructed asynchronous background worker using BullMQ and Redis to process 10,000 document exports per hour.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "prj0.b1",
+        "claimText": "Candidate constructed an asynchronous background worker using BullMQ and Redis",
+        "claimType": "technology",
+        "skills": ["BullMQ", "Redis"],
+        "numbers": []
+      },
+      {
+        "bulletId": "prj0.b1",
+        "claimText": "Worker processed 10,000 document exports per hour",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["10,000"]
+      },
+      {
+        "bulletId": "prj0.b1",
+        "claimText": "Candidate implemented background worker architecture",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "prj1.b0",
+    "bulletText": "Optimized PostgreSQL relational queries and created B-tree composite indexes, reducing query execution time by 60%.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "prj1.b0",
+        "claimText": "Candidate optimized PostgreSQL relational queries",
+        "claimType": "technology",
+        "skills": ["PostgreSQL"],
+        "numbers": []
+      },
+      {
+        "bulletId": "prj1.b0",
+        "claimText": "Candidate created B-tree composite indexes",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      },
+      {
+        "bulletId": "prj1.b0",
+        "claimText": "Query execution time decreased by 60%",
+        "claimType": "outcome",
+        "skills": [],
+        "numbers": ["60%"]
+      }
+    ]
+  },
+  {
+    "id": "prj1.b1",
+    "bulletText": "Developed interactive analytics dashboards in React and Tailwind CSS, tracking 15 key performance indicators in real time.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "prj1.b1",
+        "claimText": "Candidate developed interactive analytics dashboards using React and Tailwind CSS",
+        "claimType": "technology",
+        "skills": ["React", "Tailwind CSS"],
+        "numbers": []
+      },
+      {
+        "bulletId": "prj1.b1",
+        "claimText": "Dashboard tracked 15 key performance indicators in real time",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["15"]
+      },
+      {
+        "bulletId": "prj1.b1",
+        "claimText": "Candidate was responsible for real-time analytics UI delivery",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "exp3.b0",
+    "bulletText": "Managed AWS cloud infrastructure using Terraform, provisioning VPCs, S3 buckets, and EC2 auto-scaling groups for 12 production services.",
+    "expectedClaimCount": 4,
+    "goldenClaims": [
+      {
+        "bulletId": "exp3.b0",
+        "claimText": "Candidate managed AWS cloud infrastructure as code using Terraform",
+        "claimType": "technology",
+        "skills": ["AWS", "Terraform"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp3.b0",
+        "claimText": "Candidate provisioned VPCs, S3 buckets, and EC2 auto-scaling groups",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp3.b0",
+        "claimText": "Infrastructure supported 12 production services",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["12"]
+      },
+      {
+        "bulletId": "exp3.b0",
+        "claimText": "Candidate maintained cloud infrastructure reliability",
+        "claimType": "leadership",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "exp3.b1",
+    "bulletText": "Configured Prometheus and Grafana alerting systems, decreasing Mean Time to Detect (MTTD) from 45 minutes to 3 minutes.",
+    "expectedClaimCount": 4,
+    "goldenClaims": [
+      {
+        "bulletId": "exp3.b1",
+        "claimText": "Candidate configured Prometheus and Grafana monitoring and alerting systems",
+        "claimType": "technology",
+        "skills": ["Prometheus", "Grafana"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp3.b1",
+        "claimText": "Previous Mean Time to Detect was 45 minutes",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["45"]
+      },
+      {
+        "bulletId": "exp3.b1",
+        "claimText": "MTTD was reduced to 3 minutes",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["3"]
+      },
+      {
+        "bulletId": "exp3.b1",
+        "claimText": "Candidate decreased incident detection latency",
+        "claimType": "outcome",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "exp3.b2",
+    "bulletText": "Implemented rate limiting and Helmet security headers on Express endpoints, mitigating 100% of automated credential stuffing attacks.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "exp3.b2",
+        "claimText": "Candidate implemented rate limiting and Helmet security headers on Express endpoints",
+        "claimType": "technology",
+        "skills": ["Helmet", "Express"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp3.b2",
+        "claimText": "Security mitigation achieved 100% success against automated attacks",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["100%"]
+      },
+      {
+        "bulletId": "exp3.b2",
+        "claimText": "Candidate secured web application against credential stuffing",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "prj2.b0",
+    "bulletText": "Developed full-stack web application in Next.js and Prisma, onboarding 2,500 beta users in the first 30 days.",
+    "expectedClaimCount": 4,
+    "goldenClaims": [
+      {
+        "bulletId": "prj2.b0",
+        "claimText": "Candidate developed full-stack web application using Next.js and Prisma",
+        "claimType": "technology",
+        "skills": ["Next.js", "Prisma"],
+        "numbers": []
+      },
+      {
+        "bulletId": "prj2.b0",
+        "claimText": "Application onboarded 2,500 beta users",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["2,500"]
+      },
+      {
+        "bulletId": "prj2.b0",
+        "claimText": "User acquisition occurred in the first 30 days",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["30"]
+      },
+      {
+        "bulletId": "prj2.b0",
+        "claimText": "Candidate was responsible for full-stack application development",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "prj2.b1",
+    "bulletText": "Created high-throughput data processing pipeline in Python and Apache Kafka, ingesting 15k records per second.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "prj2.b1",
+        "claimText": "Candidate created high-throughput data processing pipeline using Python and Apache Kafka",
+        "claimType": "technology",
+        "skills": ["Python", "Apache Kafka"],
+        "numbers": []
+      },
+      {
+        "bulletId": "prj2.b1",
+        "claimText": "Pipeline ingested 15k records per second",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["15k"]
+      },
+      {
+        "bulletId": "prj2.b1",
+        "claimText": "Candidate architected streaming pipeline",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "exp4.b0",
+    "bulletText": "Conducted automated browser testing with Puppeteer, cutting regression testing cycle duration from 4 hours to 20 minutes.",
+    "expectedClaimCount": 4,
+    "goldenClaims": [
+      {
+        "bulletId": "exp4.b0",
+        "claimText": "Candidate conducted automated browser testing with Puppeteer",
+        "claimType": "technology",
+        "skills": ["Puppeteer"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp4.b0",
+        "claimText": "Regression testing cycle duration was reduced from 4 hours",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["4"]
+      },
+      {
+        "bulletId": "exp4.b0",
+        "claimText": "Regression testing duration was cut to 20 minutes",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["20"]
+      },
+      {
+        "bulletId": "exp4.b0",
+        "claimText": "Candidate improved testing efficiency through automation",
+        "claimType": "outcome",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "exp4.b1",
+    "bulletText": "Containerized multi-tier web application using Docker Compose for 8 development team members.",
+    "expectedClaimCount": 3,
+    "goldenClaims": [
+      {
+        "bulletId": "exp4.b1",
+        "claimText": "Candidate containerized multi-tier web application using Docker Compose",
+        "claimType": "technology",
+        "skills": ["Docker"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp4.b1",
+        "claimText": "Containerized environment served 8 development team members",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["8"]
+      },
+      {
+        "bulletId": "exp4.b1",
+        "claimText": "Candidate streamlined developer onboarding and environment consistency",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  },
+  {
+    "id": "exp4.b2",
+    "bulletText": "Implemented zero-downtime rolling deployments on Kubernetes, maintaining 100% service availability during 24 production releases.",
+    "expectedClaimCount": 4,
+    "goldenClaims": [
+      {
+        "bulletId": "exp4.b2",
+        "claimText": "Candidate implemented zero-downtime rolling deployments on Kubernetes",
+        "claimType": "technology",
+        "skills": ["Kubernetes"],
+        "numbers": []
+      },
+      {
+        "bulletId": "exp4.b2",
+        "claimText": "Deployments maintained 100% service availability",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["100%"]
+      },
+      {
+        "bulletId": "exp4.b2",
+        "claimText": "Zero-downtime was sustained across 24 production releases",
+        "claimType": "metric",
+        "skills": [],
+        "numbers": ["24"]
+      },
+      {
+        "bulletId": "exp4.b2",
+        "claimText": "Candidate managed release operations",
+        "claimType": "responsibility",
+        "skills": [],
+        "numbers": []
+      }
+    ]
+  }
+]

@@ -7,6 +7,8 @@ const mongoose = require('mongoose');
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-very-long-key-32-chars-minimum';
 process.env.NODE_ENV = 'test';
+process.env.MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/test-jobfitai';
+process.env.GOOGLE_GENAI_API_KEY = process.env.GOOGLE_GENAI_API_KEY || 'test-dummy-google-genai-key';
 
 let mongoServer;
 let appInstance;
