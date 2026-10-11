@@ -71,4 +71,39 @@ describe('core/skillNormalizer', () => {
       expect(second).toBe(first);
     }
   });
+
+  it('splits compound skills joined by &, ,, /, or and into separate skills', () => {
+    expect(normalizeSkill('MongoDB & Mongoose')).toEqual(['MongoDB', 'Mongoose']);
+    expect(normalizeSkill('Git & GitHub')).toEqual(['Git', 'GitHub']);
+    expect(normalizeSkill('Node.js and Express')).toEqual(['Node.js', 'Express']);
+    expect(normalizeSkill('React, Redux')).toEqual(['React', 'Redux']);
+    expect(normalizeSkill('HTML / CSS')).toEqual(['HTML', 'CSS']);
+    expect(normalizeSkill('CI/CD')).toBe('CI/CD');
+  });
+
+  it('strips parenthetical qualifiers', () => {
+    expect(normalizeSkill('JavaScript (ES6+)')).toBe('JavaScript');
+    expect(normalizeSkill('Python (3.11)')).toBe('Python');
+    expect(normalizeSkill('React.js (Frontend Framework)')).toBe('React');
+  });
+
+  it('canonicalizes names matching the M8 dependency map', () => {
+    expect(normalizeSkill('express')).toBe('Express');
+    expect(normalizeSkill('express.js')).toBe('Express');
+    expect(normalizeSkill('react')).toBe('React');
+    expect(normalizeSkill('react.js')).toBe('React');
+    expect(normalizeSkill('rest api')).toBe('REST APIs');
+    expect(normalizeSkill('rest api design')).toBe('REST APIs');
+    expect(normalizeSkill('mongodb')).toBe('MongoDB');
+    expect(normalizeSkill('mongoose')).toBe('Mongoose');
+    expect(normalizeSkill('jwt')).toBe('JWT Authentication');
+    expect(normalizeSkill('jwt authentication')).toBe('JWT Authentication');
+    expect(normalizeSkill('redis')).toBe('Redis');
+    expect(normalizeSkill('unit testing')).toBe('Unit Testing');
+    expect(normalizeSkill('api testing')).toBe('API Testing');
+    expect(normalizeSkill('node')).toBe('Node.js');
+    expect(normalizeSkill('node.js')).toBe('Node.js');
+    expect(normalizeSkill('Data Validation')).toBe('Data Validation');
+    expect(normalizeSkill('CRUD Operations')).toBe('CRUD Operations');
+  });
 });

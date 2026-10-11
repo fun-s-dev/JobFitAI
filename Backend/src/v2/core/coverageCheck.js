@@ -155,7 +155,12 @@ function checkBulletCoverage(bulletText, claims = []) {
   for (const claim of claims) {
     if (Array.isArray(claim.skills)) {
       for (const s of claim.skills) {
-        claimSkillsNormalized.add(normalizeSkill(s).toLowerCase());
+        const res = normalizeSkill(s);
+        if (Array.isArray(res)) {
+          for (const item of res) claimSkillsNormalized.add(item.toLowerCase());
+        } else if (res) {
+          claimSkillsNormalized.add(res.toLowerCase());
+        }
       }
     }
   }
@@ -163,11 +168,20 @@ function checkBulletCoverage(bulletText, claims = []) {
   // Check missing technologies
   const missingTech = [];
   for (const tech of bulletTech) {
-    const canonicalTech = normalizeSkill(tech).toLowerCase();
-    const inClaimSkills = claimSkillsNormalized.has(canonicalTech);
-    const inClaimText = new RegExp(`\\b${escapeRegExp(tech)}\\b`, 'i').test(combinedClaimsText);
+    const res = normalizeSkill(tech);
+    const techItems = Array.isArray(res) ? res : [res];
+    let covered = false;
+    for (const item of techItems) {
+      const canonicalTech = item.toLowerCase();
+      const inClaimSkills = claimSkillsNormalized.has(canonicalTech);
+      const inClaimText = new RegExp(`\\b${escapeRegExp(item)}\\b`, 'i').test(combinedClaimsText);
+      if (inClaimSkills || inClaimText) {
+        covered = true;
+        break;
+      }
+    }
 
-    if (!inClaimSkills && !inClaimText) {
+    if (!covered && !new RegExp(`\\b${escapeRegExp(tech)}\\b`, 'i').test(combinedClaimsText)) {
       missingTech.push(tech);
     }
   }

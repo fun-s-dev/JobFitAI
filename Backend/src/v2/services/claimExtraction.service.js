@@ -125,9 +125,16 @@ function createClaimExtractionService({ llmClient, batchSize = 3 } = {}) {
 
         // Normalize skills on all accepted claims
         for (const claim of currentClaims) {
-          const normalizedSkills = (Array.isArray(claim.skills) ? claim.skills : [])
-            .map((s) => normalizeSkill(s))
-            .filter(Boolean);
+          const normalizedSkills = Array.from(
+            new Set(
+              (Array.isArray(claim.skills) ? claim.skills : [])
+                .flatMap((s) => {
+                  const res = normalizeSkill(s);
+                  return Array.isArray(res) ? res : [res];
+                })
+                .filter(Boolean)
+            )
+          );
 
           allClaims.push({
             ...claim,

@@ -83,6 +83,8 @@
   "rest apis": "REST APIs",
   "restful api": "REST APIs",
   "restful apis": "REST APIs",
+  "rest api design": "REST APIs",
+  "restful api design": "REST APIs",
   "grpc": "gRPC",
   "protobuf": "Protocol Buffers",
   "protocol buffers": "Protocol Buffers",
@@ -124,9 +126,10 @@
   "linux": "Linux",
   "bash": "Bash",
   "shell": "Shell",
-  "jwt": "JWT",
-  "json web tokens": "JWT",
-  "json web token": "JWT",
+  "jwt": "JWT Authentication",
+  "jwt authentication": "JWT Authentication",
+  "json web tokens": "JWT Authentication",
+  "json web token": "JWT Authentication",
   "oauth": "OAuth",
   "oauth2": "OAuth 2.0",
   "oauth 2.0": "OAuth 2.0",
@@ -174,5 +177,9 @@
   "cicd": "CI/CD",
   "unit testing": "Unit Testing",
   "integration testing": "Integration Testing",
-  "e2e testing": "E2E Testing"
+  "e2e testing": "E2E Testing",
+  "api testing": "API Testing",
+  "api test": "API Testing",
+  "postman": "Postman",
+  "bcrypt": "Bcrypt"
 }
