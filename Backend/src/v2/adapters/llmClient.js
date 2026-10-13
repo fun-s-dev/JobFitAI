@@ -1,10 +1,14 @@
+const crypto = require('node:crypto');
 const { GoogleGenAI } = require('@google/genai');
 const { z } = require('zod');
 const { cleanSchemaForGemini } = require('../utils/cleanSchema');
 const { withTimeout, withRetry, isTransientError } = require('../utils/resilience');
 const { normalizeVector } = require('../core/normalize');
+const { vectorToBuffer, bufferToVector } = require('../core/vectorBuffer');
+const { createLimiter } = require('../utils/limiter');
 const { LlmValidationError, LlmClientError } = require('../errors/LlmErrors');
 const LlmCall = require('../models/llmCall.model');
+const EmbeddingCache = require('../models/embeddingCache.model');
 const { logger: defaultLogger } = require('../utils/logger');
 
 // [ASSUMED] Batch limit of 100 texts per embedContent call based on Google API REST documentation (not typed as a constant in SDK).
@@ -15,6 +19,7 @@ function createLlmClient({
   cfg = {},
   logger = defaultLogger,
   callRepo = LlmCall,
+  cacheRepo = EmbeddingCache,
 } = {}) {
   const client =
     genai ||
@@ -26,6 +31,8 @@ function createLlmClient({
   const embeddingModel = cfg.EMBEDDING_MODEL || process.env.EMBEDDING_MODEL || 'gemini-embedding-001';
   const embeddingDims = cfg.EMBEDDING_DIMS || 768;
   const timeoutMs = cfg.LLM_TIMEOUT_MS || 30000;
+  const concurrency = cfg.LLM_CONCURRENCY || 5;
+  const limiter = createLimiter(concurrency);
 
   async function logCallSafely(data) {
     try {
@@ -178,96 +185,232 @@ function createLlmClient({
   }
 
   /**
-   * Batched text embedding with L2 normalization.
+   * Embeds an array of texts with content-hashed caching, deduplication,
+   * bounded concurrency, and L2 unit-normalization on write.
+   *
+   * @param {string|string[]} texts
+   * @param {object} options
+   * @returns {Promise<{ vectors: number[][], stats: { hits: number, misses: number, apiCalls: number } }>}
    */
-  async function embed(texts, { user = null, runId = null, purpose = 'embed' } = {}) {
-    const textList = Array.isArray(texts) ? texts : [texts];
-    if (textList.length === 0) return [];
+  async function embedTexts(texts, { user = null, runId = null, purpose = 'embed' } = {}) {
+    const rawList = Array.isArray(texts) ? texts : [texts];
+    const textList = rawList.filter((t) => typeof t === 'string' && t.trim().length > 0);
 
-    const allVectors = [];
+    if (textList.length === 0) {
+      return {
+        vectors: [],
+        stats: { hits: 0, misses: 0, apiCalls: 0 },
+      };
+    }
 
-    for (let i = 0; i < textList.length; i += EMBED_BATCH_SIZE) {
-      const batch = textList.slice(i, i + EMBED_BATCH_SIZE);
-      const t0 = Date.now();
+    const taskType = 'SEMANTIC_SIMILARITY';
 
+    // Compute key for each input text: sha256(model|dims|taskType|text)
+    const itemKeys = textList.map((t) => {
+      return crypto
+        .createHash('sha256')
+        .update(`${embeddingModel}|${embeddingDims}|${taskType}|${t}`)
+        .digest('hex');
+    });
+
+    const keyToVectorMap = new Map();
+    const uniqueKeys = Array.from(new Set(itemKeys));
+
+    // 1. Look up cached vectors in cacheRepo
+    if (cacheRepo && typeof cacheRepo.find === 'function') {
       try {
-        const response = await withRetry(
-          async () => {
-            return withTimeout(
-              async ({ signal }) => {
-                return client.models.embedContent({
-                  model: embeddingModel,
-                  contents: batch,
-                  config: {
-                    taskType: 'SEMANTIC_SIMILARITY',
-                    outputDimensionality: embeddingDims,
-                    abortSignal: signal,
-                  },
-                });
-              },
-              timeoutMs
-            );
-          },
-          {
-            retries: 2,
-            minTimeout: 500,
-            factor: 2,
-            randomize: true,
-            shouldRetry: isTransientError,
-            logger,
-            purpose,
-          }
-        );
-
-        const ms = Date.now() - t0;
-
-        let batchVectors = [];
-        if (response.embeddings && Array.isArray(response.embeddings)) {
-          batchVectors = response.embeddings.map((e) => normalizeVector(e.values || []));
-        } else if (response.embedding && response.embedding.values) {
-          batchVectors = [normalizeVector(response.embedding.values)];
+        const query = cacheRepo.find({ key: { $in: uniqueKeys } });
+        let cachedDocs = typeof query?.lean === 'function' ? await query.lean() : await query;
+        if (cachedDocs && typeof cachedDocs.lean === 'function') {
+          cachedDocs = await cachedDocs.lean();
         }
-
-        allVectors.push(...batchVectors);
-
-        await logCallSafely({
-          user,
-          runId,
-          purpose,
-          model: embeddingModel,
-          attempt: 1,
-          ok: true,
-          ms,
-          tokensIn: 0,
-          tokensOut: 0,
-          costEstimate: 0,
-          error: null,
-        });
-      } catch (err) {
-        const ms = Date.now() - t0;
-        await logCallSafely({
-          user,
-          runId,
-          purpose,
-          model: embeddingModel,
-          attempt: 1,
-          ok: false,
-          ms,
-          tokensIn: 0,
-          tokensOut: 0,
-          costEstimate: 0,
-          error: err.message,
-        });
-        throw err;
+        if (Array.isArray(cachedDocs)) {
+          for (const doc of cachedDocs) {
+            if (doc && doc.key && doc.vector) {
+              const vectorArray = bufferToVector(doc.vector);
+              keyToVectorMap.set(doc.key, vectorArray);
+            }
+          }
+        }
+      } catch (cacheLookupErr) {
+        if (logger && typeof logger.warn === 'function') {
+          logger.warn({ err: cacheLookupErr.message }, 'Failed to look up EmbeddingCache');
+        }
       }
     }
 
-    return allVectors;
+    // 2. Identify missing unique texts
+    const missingItems = [];
+    const seenMissingKeys = new Set();
+
+    for (let i = 0; i < textList.length; i++) {
+      const key = itemKeys[i];
+      const text = textList[i];
+      if (!keyToVectorMap.has(key) && !seenMissingKeys.has(key)) {
+        seenMissingKeys.add(key);
+        missingItems.push({ key, text });
+      }
+    }
+
+    let hits = 0;
+    let misses = 0;
+    for (const key of itemKeys) {
+      if (keyToVectorMap.has(key)) {
+        hits++;
+      } else {
+        misses++;
+      }
+    }
+
+    let apiCalls = 0;
+
+    // 3. Batch and embed misses under bounded concurrency
+    if (missingItems.length > 0) {
+      const batches = [];
+      for (let i = 0; i < missingItems.length; i += EMBED_BATCH_SIZE) {
+        batches.push(missingItems.slice(i, i + EMBED_BATCH_SIZE));
+      }
+
+      const batchPromises = batches.map((batch) =>
+        limiter(async () => {
+          const contents = batch.map((item) => item.text);
+          const t0 = Date.now();
+          apiCalls++;
+
+          try {
+            const response = await withRetry(
+              async () => {
+                return withTimeout(
+                  async ({ signal }) => {
+                    return client.models.embedContent({
+                      model: embeddingModel,
+                      contents,
+                      config: {
+                        taskType,
+                        outputDimensionality: embeddingDims,
+                        abortSignal: signal,
+                      },
+                    });
+                  },
+                  timeoutMs
+                );
+              },
+              {
+                retries: 2,
+                minTimeout: 500,
+                factor: 2,
+                randomize: true,
+                shouldRetry: isTransientError,
+                logger,
+                purpose,
+              }
+            );
+
+            const ms = Date.now() - t0;
+            let rawVectors = [];
+            if (response.embeddings && Array.isArray(response.embeddings)) {
+              rawVectors = response.embeddings.map((e) => e.values || []);
+            } else if (response.embedding && response.embedding.values) {
+              rawVectors = [response.embedding.values];
+            }
+
+            // Normalize vectors on write
+            const normalizedVectors = rawVectors.map((v) => normalizeVector(v));
+
+            // Write newly embedded vectors to cache
+            const docsToInsert = [];
+            for (let b = 0; b < batch.length; b++) {
+              const { key } = batch[b];
+              const vec = normalizedVectors[b] || [];
+              keyToVectorMap.set(key, vec);
+
+              docsToInsert.push({
+                key,
+                vector: vectorToBuffer(vec),
+                dims: embeddingDims,
+                model: embeddingModel,
+                taskType,
+                createdAt: new Date(),
+              });
+            }
+
+            if (cacheRepo && typeof cacheRepo.insertMany === 'function' && docsToInsert.length > 0) {
+              try {
+                await cacheRepo.insertMany(docsToInsert, { ordered: false });
+              } catch (insertErr) {
+                // Ignore code 11000 duplicate-key error (parallel verifications)
+                const isDupKey =
+                  insertErr.code === 11000 ||
+                  insertErr.message?.includes('11000') ||
+                  (Array.isArray(insertErr.writeErrors) &&
+                    insertErr.writeErrors.every((we) => we.code === 11000));
+                if (!isDupKey && logger && typeof logger.warn === 'function') {
+                  logger.warn({ err: insertErr.message }, 'Failed to persist docs into EmbeddingCache');
+                }
+              }
+            }
+
+            await logCallSafely({
+              user,
+              runId,
+              purpose,
+              model: embeddingModel,
+              attempt: 1,
+              ok: true,
+              ms,
+              tokensIn: 0,
+              tokensOut: 0,
+              costEstimate: 0,
+              error: null,
+            });
+          } catch (err) {
+            const ms = Date.now() - t0;
+            await logCallSafely({
+              user,
+              runId,
+              purpose,
+              model: embeddingModel,
+              attempt: 1,
+              ok: false,
+              ms,
+              tokensIn: 0,
+              tokensOut: 0,
+              costEstimate: 0,
+              error: err.message,
+            });
+            throw err;
+          }
+        })
+      );
+
+      await Promise.all(batchPromises);
+    }
+
+    // Reconstruct vectors in original text order
+    const orderedVectors = itemKeys.map((key) => keyToVectorMap.get(key) || []);
+
+    return {
+      vectors: orderedVectors,
+      stats: {
+        hits,
+        misses,
+        apiCalls,
+      },
+    };
+  }
+
+  /**
+   * Backward-compatible helper returning pure vectors.
+   */
+  async function embed(texts, options = {}) {
+    const res = await embedTexts(texts, options);
+    return res.vectors;
   }
 
   return {
     generateStructured,
     embed,
+    embedTexts,
   };
 }
 

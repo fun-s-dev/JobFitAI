@@ -24,6 +24,10 @@ describe('v2 Environment Configuration (loadConfig)', () => {
     expect(config.LLM_TIMEOUT_MS).toBe(30000);
     expect(config.THRESHOLD_VERIFIED).toBe(0.8);
     expect(config.THRESHOLD_REVIEW).toBe(0.5);
+    expect(config.SIM_LO).toBe(0.5);
+    expect(config.SIM_HI).toBe(0.9);
+    expect(config.EMBEDDING_CACHE_TTL_DAYS).toBe(90);
+    expect(config.LLM_CONCURRENCY).toBe(5);
     expect(config.LOG_LEVEL).toBe('info');
 
     expect(config.PORT).toBe(3000);
@@ -79,6 +83,23 @@ describe('v2 Environment Configuration (loadConfig)', () => {
     } catch (err) {
       expect(err).toBeInstanceOf(ConfigError);
       expect(err.message).toContain('THRESHOLD_VERIFIED');
+    }
+  });
+
+  it('fails when SIM_LO is greater than or equal to SIM_HI', () => {
+    const invalidSimEnv = {
+      ...validBaseEnv,
+      SIM_LO: '0.8',
+      SIM_HI: '0.6',
+    };
+
+    expect(() => loadConfig(invalidSimEnv)).toThrow(ConfigError);
+
+    try {
+      loadConfig(invalidSimEnv);
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConfigError);
+      expect(err.message).toContain('SIM_LO');
     }
   });
 

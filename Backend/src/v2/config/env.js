@@ -27,6 +27,10 @@ const envSchema = z
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
     THRESHOLD_VERIFIED: z.coerce.number().min(0).max(1).default(0.8),
     THRESHOLD_REVIEW: z.coerce.number().min(0).max(1).default(0.5),
+    SIM_LO: z.coerce.number().min(-1).max(1).default(0.5),
+    SIM_HI: z.coerce.number().min(-1).max(1).default(0.9),
+    EMBEDDING_CACHE_TTL_DAYS: z.coerce.number().int().positive().default(90),
+    LLM_CONCURRENCY: z.coerce.number().int().positive().default(5),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
@@ -40,6 +44,13 @@ const envSchema = z
     {
       message: 'THRESHOLD_VERIFIED must be greater than THRESHOLD_REVIEW',
       path: ['THRESHOLD_VERIFIED'],
+    }
+  )
+  .refine(
+    (data) => data.SIM_LO < data.SIM_HI,
+    {
+      message: 'SIM_LO must be strictly less than SIM_HI',
+      path: ['SIM_LO'],
     }
   );
 
