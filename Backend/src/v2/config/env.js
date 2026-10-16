@@ -37,6 +37,13 @@ const envSchema = z
     RATE_LIMIT_DRAFT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
     RATE_LIMIT_DRAFT_MAX: z.coerce.number().int().positive().default(10),
     PUPPETEER_NO_SANDBOX: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(false),
+    ENTAILMENT_THINKING_LEVEL: z.enum(['LOW', 'MEDIUM', 'HIGH', 'OFF']).default('LOW'),
+    ENTAILMENT_SCORE_YES: z.coerce.number().min(0).max(1).default(1.0),
+    ENTAILMENT_SCORE_PARTIAL: z.coerce.number().min(0).max(1).default(0.5),
+    ENTAILMENT_SCORE_NO: z.coerce.number().min(0).max(1).default(0.0),
+    QUOTE_GROUNDING_THRESHOLD: z.coerce.number().min(0).max(1).default(0.90),
+    MAX_EVIDENCE_CHUNKS: z.coerce.number().int().positive().default(3),
+    MAX_CHUNK_CHARS: z.coerce.number().int().positive().default(500),
   })
 
   .refine(
