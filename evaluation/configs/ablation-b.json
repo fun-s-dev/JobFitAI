@@ -1,0 +1,12 @@
+{
+  "name": "Ablation B: Entailment Only",
+  "slug": "ablation-b",
+  "split": "test",
+  "signals": {
+    "similarity": false,
+    "entailment": true,
+    "quoteGrounding": false,
+    "guardrails": false
+  },
+  "description": "NLI entailment judgment only without embedding cosine similarity"
+}

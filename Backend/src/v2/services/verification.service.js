@@ -67,7 +67,7 @@ function createVerificationService({
     review: cfg.THRESHOLD_REVIEW ?? 0.50,
   };
 
-  const generationModel = cfg.GEMINI_MODEL || 'gemini-3-flash-preview';
+  const generationModel = cfg.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   const embeddingModel = cfg.EMBEDDING_MODEL || 'gemini-embedding-001';
   const embeddingDims = cfg.EMBEDDING_DIMS || 768;
   const simLo = cfg.SIM_LO ?? 0.5;

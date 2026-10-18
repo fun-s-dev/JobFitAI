@@ -1,0 +1,138 @@
+{
+  "calibratedAt": "2026-10-18T18:26:42.414Z",
+  "pinnedModel": "gemini-3.5-flash-lite",
+  "trainSplitSize": 100,
+  "testSplitSize": 40,
+  "empiricalCosineDistribution": {
+    "supported": {
+      "p50": 0.9544611130752376,
+      "p90": 0.9753384958186245
+    },
+    "unsupported": {
+      "p50": 0.9132198089367988,
+      "p75": 0.9441587219600287
+    },
+    "recommendedSimLo": 0.94,
+    "recommendedSimHi": 0.98
+  },
+  "logisticRegression": {
+    "w0": -2.6032,
+    "w1": -0.8016,
+    "w2": 4.0919,
+    "normalizedWeights": {
+      "W_SIM_NOGH": 0.1638,
+      "W_ENT_NOGH": 0.8362
+    }
+  },
+  "trainThresholdSweep": [
+    {
+      "threshold": 0.7,
+      "precision": 0.4523809523809524,
+      "recall": 0.95,
+      "f1": 0.6129032258064516,
+      "leakRate": 0.2,
+      "reviewRate": 0.36,
+      "tp": 19,
+      "fp": 23,
+      "fn": 1,
+      "tn": 57
+    },
+    {
+      "threshold": 0.75,
+      "precision": 1,
+      "recall": 0.95,
+      "f1": 0.9743589743589743,
+      "leakRate": 0,
+      "reviewRate": 0.59,
+      "tp": 19,
+      "fp": 0,
+      "fn": 1,
+      "tn": 80
+    },
+    {
+      "threshold": 0.8,
+      "precision": 1,
+      "recall": 0.95,
+      "f1": 0.9743589743589743,
+      "leakRate": 0,
+      "reviewRate": 0.59,
+      "tp": 19,
+      "fp": 0,
+      "fn": 1,
+      "tn": 80
+    },
+    {
+      "threshold": 0.85,
+      "precision": 1,
+      "recall": 0.95,
+      "f1": 0.9743589743589743,
+      "leakRate": 0,
+      "reviewRate": 0.59,
+      "tp": 19,
+      "fp": 0,
+      "fn": 1,
+      "tn": 80
+    },
+    {
+      "threshold": 0.9,
+      "precision": 1,
+      "recall": 0.95,
+      "f1": 0.9743589743589743,
+      "leakRate": 0,
+      "reviewRate": 0.59,
+      "tp": 19,
+      "fp": 0,
+      "fn": 1,
+      "tn": 80
+    },
+    {
+      "threshold": 0.95,
+      "precision": 1,
+      "recall": 0.95,
+      "f1": 0.9743589743589743,
+      "leakRate": 0,
+      "reviewRate": 0.59,
+      "tp": 19,
+      "fp": 0,
+      "fn": 1,
+      "tn": 80
+    }
+  ],
+  "selectedVerifiedThreshold": 0.75,
+  "testComparison": {
+    "default": {
+      "confusionMatrix": {
+        "tp": 8,
+        "fp": 0,
+        "fn": 0,
+        "tn": 32,
+        "total": 40
+      },
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fpr": 0,
+      "leakRate": 0,
+      "reviewRate": 0.6,
+      "sampleSize": 40,
+      "ece": 0.4727375
+    },
+    "calibrated": {
+      "confusionMatrix": {
+        "tp": 8,
+        "fp": 0,
+        "fn": 0,
+        "tn": 32,
+        "total": 40
+      },
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fpr": 0,
+      "leakRate": 0,
+      "reviewRate": 0.6,
+      "sampleSize": 40,
+      "ece": 0.37073749999999983
+    }
+  }
+}

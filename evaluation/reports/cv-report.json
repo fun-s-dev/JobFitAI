@@ -1,0 +1,235 @@
+{
+  "n": 140,
+  "folds": 5,
+  "ablationC": {
+    "bin": {
+      "confusionMatrix": {
+        "tp": 28,
+        "fp": 0,
+        "fn": 0,
+        "tn": 112,
+        "total": 140
+      },
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "fpr": 0,
+      "leakRate": 0,
+      "reviewRate": 0.5857142857142857,
+      "sampleSize": 140
+    },
+    "pCI": {
+      "mean": 1,
+      "lower": 1,
+      "upper": 1
+    },
+    "rCI": {
+      "mean": 1,
+      "lower": 1,
+      "upper": 1
+    },
+    "f1CI": {
+      "mean": 1,
+      "lower": 1,
+      "upper": 1
+    },
+    "leakCI": {
+      "mean": 0,
+      "lower": 0,
+      "upper": 0
+    },
+    "ece": {
+      "ece": 0.29285714285714287,
+      "bins": [
+        {
+          "binStart": 0,
+          "binEnd": 0.1,
+          "count": 30,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.1,
+          "binEnd": 0.2,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.2,
+          "binEnd": 0.30000000000000004,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.30000000000000004,
+          "binEnd": 0.4,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.4,
+          "binEnd": 0.5,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.5,
+          "binEnd": 0.6000000000000001,
+          "count": 82,
+          "avgConfidence": 0.5,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.6000000000000001,
+          "binEnd": 0.7000000000000001,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.7000000000000001,
+          "binEnd": 0.8,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.8,
+          "binEnd": 0.9,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.9,
+          "binEnd": 1,
+          "count": 28,
+          "avgConfidence": 1,
+          "accuracy": 1
+        }
+      ]
+    }
+  },
+  "ablationD": {
+    "bin": {
+      "confusionMatrix": {
+        "tp": 27,
+        "fp": 0,
+        "fn": 1,
+        "tn": 112,
+        "total": 140
+      },
+      "precision": 1,
+      "recall": 0.9642857142857143,
+      "f1": 0.9818181818181818,
+      "fpr": 0,
+      "leakRate": 0,
+      "reviewRate": 0.5928571428571429,
+      "sampleSize": 140
+    },
+    "pCI": {
+      "mean": 1,
+      "lower": 1,
+      "upper": 1
+    },
+    "rCI": {
+      "mean": 0.9654334336036908,
+      "lower": 0.8888888888888888,
+      "upper": 1
+    },
+    "f1CI": {
+      "mean": 0.9820958799375683,
+      "lower": 0.9411764705882353,
+      "upper": 1
+    },
+    "leakCI": {
+      "mean": 0,
+      "lower": 0,
+      "upper": 0
+    },
+    "ece": {
+      "ece": 0.29285714285714287,
+      "bins": [
+        {
+          "binStart": 0,
+          "binEnd": 0.1,
+          "count": 30,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.1,
+          "binEnd": 0.2,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.2,
+          "binEnd": 0.30000000000000004,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.30000000000000004,
+          "binEnd": 0.4,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.4,
+          "binEnd": 0.5,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.5,
+          "binEnd": 0.6000000000000001,
+          "count": 82,
+          "avgConfidence": 0.5,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.6000000000000001,
+          "binEnd": 0.7000000000000001,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.7000000000000001,
+          "binEnd": 0.8,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.8,
+          "binEnd": 0.9,
+          "count": 0,
+          "avgConfidence": 0,
+          "accuracy": 0
+        },
+        {
+          "binStart": 0.9,
+          "binEnd": 1,
+          "count": 28,
+          "avgConfidence": 1,
+          "accuracy": 1
+        }
+      ]
+    }
+  },
+  "stats": {
+    "cacheHits": 140,
+    "cacheMisses": 0,
+    "liveCalls": 0
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "Ablation A: Similarity Only",
+  "slug": "ablation-a",
+  "split": "test",
+  "signals": {
+    "similarity": true,
+    "entailment": false,
+    "quoteGrounding": false,
+    "guardrails": false
+  },
+  "description": "Baseline: cosine similarity retrieval only without LLM entailment classification"
+}

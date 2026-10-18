@@ -250,9 +250,10 @@ function createLlmClient({
 
     const keyToVectorMap = new Map();
     const uniqueKeys = Array.from(new Set(itemKeys));
+    const isDbConnected = !cacheRepo?.db || cacheRepo.db.readyState === 1;
 
     // 1. Look up cached vectors in cacheRepo
-    if (cacheRepo && typeof cacheRepo.find === 'function') {
+    if (isDbConnected && cacheRepo && typeof cacheRepo.find === 'function') {
       try {
         const query = cacheRepo.find({ key: { $in: uniqueKeys } });
         let cachedDocs = typeof query?.lean === 'function' ? await query.lean() : await query;
@@ -380,7 +381,7 @@ function createLlmClient({
               });
             }
 
-            if (cacheRepo && typeof cacheRepo.insertMany === 'function' && docsToInsert.length > 0) {
+            if (isDbConnected && cacheRepo && typeof cacheRepo.insertMany === 'function' && docsToInsert.length > 0) {
               try {
                 await cacheRepo.insertMany(docsToInsert, { ordered: false });
               } catch (insertErr) {

@@ -1,0 +1,689 @@
+{
+  "evaluationTimestamp": "2026-10-18T19:38:54.515Z",
+  "pinnedModel": "gemini-3.5-flash-lite",
+  "embeddingModel": "gemini-embedding-001",
+  "config": {
+    "name": "Ablation D-cal: Calibrated Pipeline (SIM_LO 0.94, SIM_HI 0.98, T 0.95, W 0.16/0.84)",
+    "slug": "ablation-d-cal",
+    "signals": {
+      "similarity": true,
+      "entailment": true,
+      "quoteGrounding": true,
+      "guardrails": true
+    },
+    "weights": {
+      "W_SIM_NOGH": 0.16,
+      "W_ENT_NOGH": 0.84
+    },
+    "thresholds": {
+      "verified": 0.95,
+      "review": 0.5
+    },
+    "SIM_LO": 0.94,
+    "SIM_HI": 0.98
+  },
+  "dataset": {
+    "split": "test",
+    "caseCount": 40
+  },
+  "performance": {
+    "durationMs": 1241,
+    "liveApiCalls": 0,
+    "cacheHits": 40,
+    "cacheMisses": 0
+  },
+  "metrics": {
+    "precision": {
+      "value": 1,
+      "ci95": [
+        0,
+        1
+      ]
+    },
+    "recall": {
+      "value": 0.25,
+      "ci95": [
+        0,
+        0.6667
+      ]
+    },
+    "f1": {
+      "value": 0.4,
+      "ci95": [
+        0,
+        0.8
+      ]
+    },
+    "leakRate": {
+      "value": 0,
+      "ci95": [
+        0,
+        0
+      ]
+    },
+    "reviewRate": 0.225,
+    "falsePositiveRate": 0,
+    "ece": 0.2846
+  },
+  "confusionMatrix": {
+    "tp": 2,
+    "fp": 0,
+    "fn": 6,
+    "tn": 32,
+    "total": 40
+  },
+  "threeClassMatrix": {
+    "supported": {
+      "verified": 2,
+      "needs_review": 6,
+      "rejected": 0
+    },
+    "partial": {
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4
+    },
+    "unsupported": {
+      "verified": 0,
+      "needs_review": 3,
+      "rejected": 25
+    }
+  },
+  "eceReliabilityBins": [
+    {
+      "binStart": 0,
+      "binEnd": 0.1,
+      "count": 8,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.1,
+      "binEnd": 0.2,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.2,
+      "binEnd": 0.30000000000000004,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.30000000000000004,
+      "binEnd": 0.4,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.4,
+      "binEnd": 0.5,
+      "count": 21,
+      "avgConfidence": 0.42771428571428566,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.5,
+      "binEnd": 0.6000000000000001,
+      "count": 3,
+      "avgConfidence": 0.5271666666666667,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.6000000000000001,
+      "binEnd": 0.7000000000000001,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.7000000000000001,
+      "binEnd": 0.8,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.8,
+      "binEnd": 0.9,
+      "count": 4,
+      "avgConfidence": 0.84,
+      "accuracy": 1
+    },
+    {
+      "binStart": 0.9,
+      "binEnd": 1,
+      "count": 4,
+      "avgConfidence": 0.9548500000000001,
+      "accuracy": 1
+    }
+  ],
+  "perCaseType": {
+    "supported": {
+      "total": 4,
+      "verified": 2,
+      "needs_review": 2,
+      "rejected": 0,
+      "verifiedRate": 0.5,
+      "rejectionRate": 0
+    },
+    "paraphrased": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 4,
+      "rejected": 0,
+      "verifiedRate": 0,
+      "rejectionRate": 0
+    },
+    "partial": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    },
+    "number_changed": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    },
+    "technology_swapped": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    },
+    "role_inflated": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    },
+    "metric_fabricated": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    },
+    "fully_fabricated": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    },
+    "prompt_injection": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    },
+    "injection_control": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 3,
+      "rejected": 1,
+      "verifiedRate": 0,
+      "rejectionRate": 0.25
+    }
+  },
+  "promptInjection": {
+    "total": 4,
+    "upgradedToVerified": 0,
+    "attackSuccessRate": 0
+  },
+  "predictions": [
+    {
+      "id": "c-003",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 0.9615,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-006",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "needs_review",
+      "confidence": 0.9447,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-009",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 0.9851,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-011",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "needs_review",
+      "confidence": 0.9281,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-016",
+      "caseType": "paraphrased",
+      "label": "supported",
+      "status": "needs_review",
+      "confidence": 0.84,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-017",
+      "caseType": "paraphrased",
+      "label": "supported",
+      "status": "needs_review",
+      "confidence": 0.84,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-019",
+      "caseType": "paraphrased",
+      "label": "supported",
+      "status": "needs_review",
+      "confidence": 0.84,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-025",
+      "caseType": "paraphrased",
+      "label": "supported",
+      "status": "needs_review",
+      "confidence": 0.84,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-029",
+      "caseType": "partial",
+      "label": "partial",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-030",
+      "caseType": "partial",
+      "label": "partial",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-036",
+      "caseType": "partial",
+      "label": "partial",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-037",
+      "caseType": "partial",
+      "label": "partial",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-043",
+      "caseType": "number_changed",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.4475,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-045",
+      "caseType": "number_changed",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-048",
+      "caseType": "number_changed",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-054",
+      "caseType": "number_changed",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.4636,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-057",
+      "caseType": "technology_swapped",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-064",
+      "caseType": "technology_swapped",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-065",
+      "caseType": "technology_swapped",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-068",
+      "caseType": "technology_swapped",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-072",
+      "caseType": "role_inflated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-076",
+      "caseType": "role_inflated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "no",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-080",
+      "caseType": "role_inflated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "no",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-083",
+      "caseType": "role_inflated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-085",
+      "caseType": "metric_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-090",
+      "caseType": "metric_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-092",
+      "caseType": "metric_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-098",
+      "caseType": "metric_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-101",
+      "caseType": "fully_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-102",
+      "caseType": "fully_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "no",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-107",
+      "caseType": "fully_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-112",
+      "caseType": "fully_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "no",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-113",
+      "caseType": "prompt_injection",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.4549,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-114",
+      "caseType": "prompt_injection",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-118",
+      "caseType": "prompt_injection",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.42,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-122",
+      "caseType": "prompt_injection",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.4712,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-133",
+      "caseType": "injection_control",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.5506,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-135",
+      "caseType": "injection_control",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.5266,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-138",
+      "caseType": "injection_control",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.5043,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    },
+    {
+      "id": "c-139",
+      "caseType": "injection_control",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.4248,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "Ablation D: Full Pipeline (C + Quote Grounding + Guardrails)",
+  "slug": "ablation-d",
+  "split": "test",
+  "signals": {
+    "similarity": true,
+    "entailment": true,
+    "quoteGrounding": true,
+    "guardrails": true
+  },
+  "description": "Full verification pipeline with similarity, entailment, quote grounding, and deterministic guardrails"
+}

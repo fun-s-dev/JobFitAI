@@ -1,0 +1,22 @@
+{
+  "name": "Ablation D-cal: Calibrated Pipeline (SIM_LO 0.94, SIM_HI 0.98, T 0.95, W 0.16/0.84)",
+  "slug": "ablation-d-cal",
+  "split": "test",
+  "signals": {
+    "similarity": true,
+    "entailment": true,
+    "quoteGrounding": true,
+    "guardrails": true
+  },
+  "SIM_LO": 0.94,
+  "SIM_HI": 0.98,
+  "thresholds": {
+    "verified": 0.95,
+    "review": 0.50
+  },
+  "weights": {
+    "W_SIM_NOGH": 0.16,
+    "W_ENT_NOGH": 0.84
+  },
+  "description": "Full verification pipeline with calibrated similarity bounds (0.94/0.98), weights (0.16/0.84), and verified threshold (0.95)"
+}

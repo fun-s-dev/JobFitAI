@@ -28,12 +28,33 @@ describe('core/coverageCheck', () => {
       expect(normalizeNumericToken('1,000')).toBe(normalizeNumericToken('1000'));
       expect(normalizeNumericToken('$2M')).toBe(normalizeNumericToken('2m'));
       expect(normalizeNumericToken('10K')).toBe(normalizeNumericToken('10k'));
+
+      // Percentage equivalents: %, percent, per cent
+      expect(normalizeNumericToken('45 percent')).toBe('45%');
+      expect(normalizeNumericToken('45 per cent')).toBe('45%');
+      expect(normalizeNumericToken('45%')).toBe('45%');
+      expect(normalizeNumericToken('45 PERCENT')).toBe('45%');
+      expect(normalizeNumericToken('45 Per Cent')).toBe('45%');
     });
 
     it('matches trailing percentage without word-boundary failure', () => {
       const text = 'Reduced CPU usage by 40%';
       const tokens = extractNumericTokens(text);
       expect(tokens).toContain('40%');
+    });
+
+    it('extracts percent and per cent and normalizes them equivalent to %', () => {
+      const text1 = 'Shrunk client bundle size by 45 percent';
+      const text2 = 'Shrunk client bundle size by 45 per cent';
+      const text3 = 'Shrunk client bundle size by 45%';
+
+      const tokens1 = extractNumericTokens(text1).map(normalizeNumericToken);
+      const tokens2 = extractNumericTokens(text2).map(normalizeNumericToken);
+      const tokens3 = extractNumericTokens(text3).map(normalizeNumericToken);
+
+      expect(tokens1).toContain('45%');
+      expect(tokens2).toContain('45%');
+      expect(tokens3).toContain('45%');
     });
   });
 

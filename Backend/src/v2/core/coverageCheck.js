@@ -13,13 +13,14 @@ function normalizeNumericToken(token) {
   return token
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, '')       // remove whitespace (e.g. "40 %" -> "40%")
+    .replace(/\s+/g, '')       // remove whitespace (e.g. "40 %" -> "40%", "40 per cent" -> "40percent")
+    .replace(/percent/g, '%')   // normalize "percent" and "per cent" to "%"
     .replace(/^[$€£]/, '')      // strip leading currency symbols ($2M -> 2m)
     .replace(/,/g, '');         // remove thousand commas (1,000 -> 1000)
 }
 
 /**
- * Extracts numeric tokens from text including percentages, multipliers,
+ * Extracts numeric tokens from text including percentages (%, percent, per cent), multipliers,
  * metric prefixes (k/M/B), decimals, and p-percentiles.
  */
 function extractNumericTokens(text) {
@@ -28,8 +29,8 @@ function extractNumericTokens(text) {
   const tokens = [];
   // Matches:
   // 1. Percentile metrics: p95, p99, p50
-  // 2. Numbers with optional currency, commas/decimals, and optional suffixes (%, k, M, B, x)
-  const regex = /(?:\bp\d+\b|\$?\b\d+(?:[.,]\d+)*(?:\s*%|[kKmMbB]|x|X)?(?!\w))/g;
+  // 2. Numbers with optional currency, commas/decimals, and optional suffixes (%, percent, per cent, k, M, B, x)
+  const regex = /(?:\bp\d+\b|\$?\b\d+(?:[.,]\d+)*(?:\s*(?:%|percent|per\s+cent)|[kKmMbB]|x|X)?(?!\w))/gi;
 
   let match;
   while ((match = regex.exec(text)) !== null) {
