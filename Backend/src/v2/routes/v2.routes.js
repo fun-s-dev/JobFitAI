@@ -18,6 +18,10 @@ router.get('/health', (req, res) => {
 const draftRouter = require('./draft.routes');
 router.use('/drafts', draftRouter);
 
+// Verification endpoints
+const verificationRouter = require('./verification.routes');
+router.use('/verification', verificationRouter);
+
 // v2 Not Found handler for unknown /api/v2 routes
 
 router.use(notFoundHandler);

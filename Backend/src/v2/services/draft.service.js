@@ -25,6 +25,7 @@ function createDraftService({ llmClient }) {
     jobDescription = '',
     user = null,
     runId = null,
+    requestId = null,
   } = {}) {
     const system = [
       'You are an expert resume writer.',
@@ -60,6 +61,7 @@ function createDraftService({ llmClient }) {
       schema: RawDraftSchema,
       user,
       runId,
+      requestId,
     });
 
     // Assign IDs deterministically in code; never trust the model to number things

@@ -105,7 +105,10 @@ function createEntailmentService({ llmClient, config } = {}) {
    *   reason: string
    * }>}
    */
-  async function evaluateClaim({ claim, evidenceChunks = [] }, { user = null, runId = null } = {}) {
+  async function evaluateClaim(
+    { claim, evidenceChunks = [] },
+    { user = null, runId = null, quoteGrounding = true, guardrails = true } = {}
+  ) {
     if (!claim || typeof claim.claimText !== 'string' || claim.claimText.trim().length === 0) {
       throw new Error('Claim object with non-empty claimText is required');
     }
@@ -166,6 +169,7 @@ function createEntailmentService({ llmClient, config } = {}) {
     const rawVerdict = rawResult.verdict;
 
     // Verify quote grounding against the exact chunk text slices
+    const shouldGround = quoteGrounding !== false;
     const grounding = groundQuote({
       quote: rawResult.evidenceQuote,
       chunks: validChunks,
@@ -174,12 +178,16 @@ function createEntailmentService({ llmClient, config } = {}) {
     });
 
     // Run deterministic guardrails (number rule & leadership rule)
-    const guardrails = evaluateGuardrails({
-      claim,
-      chunks: validChunks,
-    });
+    const shouldGuardrail = guardrails !== false;
+    const guardrailsResult = shouldGuardrail
+      ? evaluateGuardrails({
+          claim,
+          chunks: validChunks,
+        })
+      : { caps: [] };
 
-    const finalVerdict = grounding.finalVerdict;
+    const finalVerdict = shouldGround ? grounding.finalVerdict : rawVerdict;
+    const finalQuoteUngrounded = shouldGround ? grounding.quoteUngrounded : false;
     const entailmentScore = toEntailmentScore(finalVerdict, runtimeCfg);
 
     return {
@@ -190,8 +198,8 @@ function createEntailmentService({ llmClient, config } = {}) {
       charStart: grounding.charStart,
       charEnd: grounding.charEnd,
       missingElements: Array.isArray(rawResult.missingElements) ? rawResult.missingElements : [],
-      quoteUngrounded: grounding.quoteUngrounded,
-      caps: guardrails.caps,
+      quoteUngrounded: finalQuoteUngrounded,
+      caps: guardrailsResult.caps,
       entailmentScore,
       reason: 'evaluated',
     };

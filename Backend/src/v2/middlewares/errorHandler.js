@@ -6,17 +6,22 @@
 
 function errorHandler(err, req, res, _next) {
   const requestId = req.id || req.headers['x-request-id'] || 'unknown';
-  const statusCode = err.statusCode || err.status || 500;
+  let statusCode = err.statusCode || err.status || 500;
   let code = err.code || err.name || 'INTERNAL_ERROR';
 
-  if (statusCode === 503 && (code === 'INTERNAL_ERROR' || code === 'Error')) {
+  if (err.name === 'QuotaExhaustedError' || code === 'LLM_QUOTA_EXHAUSTED' || statusCode === 429) {
+    statusCode = 429;
+    code = 'LLM_QUOTA_EXHAUSTED';
+  } else if (statusCode === 503 && (code === 'INTERNAL_ERROR' || code === 'Error')) {
     code = 'SERVICE_UNAVAILABLE';
   } else if (statusCode === 502 && (code === 'INTERNAL_ERROR' || code === 'Error')) {
     code = 'BAD_GATEWAY';
   }
 
   let message;
-  if (statusCode === 503) {
+  if (code === 'LLM_QUOTA_EXHAUSTED') {
+    message = 'Daily AI quota has been exhausted. Please try again tomorrow or contact support.';
+  } else if (statusCode === 503) {
     message = 'Upstream AI service is temporarily unavailable. Please try again later.';
   } else if (statusCode === 502) {
     message = 'Bad gateway: upstream AI service failed to complete the request.';

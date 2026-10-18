@@ -18,7 +18,7 @@ describe('v2 Environment Configuration (loadConfig)', () => {
     expect(config.JWT_SECRET).toBe(validBaseEnv.JWT_SECRET);
     expect(config.GOOGLE_GENAI_API_KEY).toBe(validBaseEnv.GOOGLE_GENAI_API_KEY);
     expect(config.NODE_ENV).toBe('development');
-    expect(config.GEMINI_MODEL).toBe('gemini-3-flash-preview');
+    expect(config.GEMINI_MODEL).toBe('gemini-3.5-flash-lite');
     expect(config.EMBEDDING_MODEL).toBe('gemini-embedding-001');
     expect(config.EMBEDDING_DIMS).toBe(768);
     expect(config.LLM_TIMEOUT_MS).toBe(30000);

@@ -22,7 +22,18 @@ class LlmClientError extends Error {
   }
 }
 
+class QuotaExhaustedError extends Error {
+  constructor(message = 'Daily LLM quota exhausted', retryText = null) {
+    super(message);
+    this.name = 'QuotaExhaustedError';
+    this.code = 'LLM_QUOTA_EXHAUSTED';
+    this.statusCode = 429;
+    this.retryText = retryText;
+  }
+}
+
 module.exports = {
   LlmValidationError,
   LlmClientError,
+  QuotaExhaustedError,
 };

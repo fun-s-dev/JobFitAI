@@ -21,10 +21,12 @@ const envSchema = z
     MONGO_URI: z.string().min(1, 'MONGO_URI is required'),
     JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
     GOOGLE_GENAI_API_KEY: z.string().min(1, 'GOOGLE_GENAI_API_KEY is required'),
-    GEMINI_MODEL: z.string().min(1).default('gemini-3-flash-preview'),
+    GEMINI_MODEL: z.string().min(1).default('gemini-3.5-flash-lite'),
     EMBEDDING_MODEL: z.string().min(1).default('gemini-embedding-001'),
     EMBEDDING_DIMS: z.coerce.number().int().positive().default(768),
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+    LLM_GENERATE_RPM: z.coerce.number().int().positive().default(10),
+    LLM_EMBED_RPM: z.coerce.number().int().positive().default(80),
     THRESHOLD_VERIFIED: z.coerce.number().min(0).max(1).default(0.8),
     THRESHOLD_REVIEW: z.coerce.number().min(0).max(1).default(0.5),
     SIM_LO: z.coerce.number().min(-1).max(1).default(0.5),
@@ -36,6 +38,13 @@ const envSchema = z
       .default('info'),
     RATE_LIMIT_DRAFT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
     RATE_LIMIT_DRAFT_MAX: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_VERIFY_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+    RATE_LIMIT_VERIFY_MAX: z.coerce.number().int().positive().default(10),
+    W_SIM: z.coerce.number().min(0).max(1).default(0.30),
+    W_ENT: z.coerce.number().min(0).max(1).default(0.40),
+    W_PROJ: z.coerce.number().min(0).max(1).default(0.30),
+    W_SIM_NOGH: z.coerce.number().min(0).max(1).default(0.40),
+    W_ENT_NOGH: z.coerce.number().min(0).max(1).default(0.60),
     PUPPETEER_NO_SANDBOX: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(false),
     ENTAILMENT_THINKING_LEVEL: z.enum(['LOW', 'MEDIUM', 'HIGH', 'OFF']).default('LOW'),
     ENTAILMENT_SCORE_YES: z.coerce.number().min(0).max(1).default(1.0),
@@ -45,7 +54,6 @@ const envSchema = z
     MAX_EVIDENCE_CHUNKS: z.coerce.number().int().positive().default(3),
     MAX_CHUNK_CHARS: z.coerce.number().int().positive().default(500),
   })
-
   .refine(
     (data) => data.THRESHOLD_VERIFIED > data.THRESHOLD_REVIEW,
     {
@@ -58,6 +66,20 @@ const envSchema = z
     {
       message: 'SIM_LO must be strictly less than SIM_HI',
       path: ['SIM_LO'],
+    }
+  )
+  .refine(
+    (data) => Math.abs(data.W_SIM + data.W_ENT + data.W_PROJ - 1.0) < 0.001,
+    {
+      message: 'W_SIM + W_ENT + W_PROJ must sum to 1.0',
+      path: ['W_SIM'],
+    }
+  )
+  .refine(
+    (data) => Math.abs(data.W_SIM_NOGH + data.W_ENT_NOGH - 1.0) < 0.001,
+    {
+      message: 'W_SIM_NOGH + W_ENT_NOGH must sum to 1.0',
+      path: ['W_SIM_NOGH'],
     }
   );
 

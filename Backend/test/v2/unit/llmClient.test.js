@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { z } from 'zod';
 
 const require = createRequire(import.meta.url);
-const { createLlmClient } = require('../../../src/v2/adapters/llmClient');
-const { LlmValidationError } = require('../../../src/v2/errors/LlmErrors');
+const { createLlmClient, createPacer } = require('../../../src/v2/adapters/llmClient');
+const { LlmValidationError, QuotaExhaustedError } = require('../../../src/v2/errors/LlmErrors');
 
 function makeFakeSdk({ generateContentResponses = [], embedContentResponses = [] }) {
   let genIndex = 0;
@@ -39,10 +39,12 @@ function makeFakeSdk({ generateContentResponses = [], embedContentResponses = []
 }
 
 const testCfg = {
-  GEMINI_MODEL: 'gemini-3-flash-preview',
+  GEMINI_MODEL: 'gemini-3.5-flash-lite',
   EMBEDDING_MODEL: 'gemini-embedding-001',
   EMBEDDING_DIMS: 768,
   LLM_TIMEOUT_MS: 5000,
+  LLM_GENERATE_RPM: 60000,
+  LLM_EMBED_RPM: 60000,
 };
 
 describe('v2 LLM Client Adapter (createLlmClient)', () => {
@@ -419,5 +421,106 @@ describe('v2 LLM Client Adapter (createLlmClient)', () => {
     const callConfig = sdk.generateCalls[0].config;
     expect(callConfig.temperature).toBe(0.3);
     expect(callConfig.thinkingConfig).toEqual({ thinkingLevel: 'LOW' });
+  });
+
+  describe('Quota safety & pacing', () => {
+    it('paces consecutive calls by enforcing minimum spacing based on RPM (fake timers)', async () => {
+      vi.useFakeTimers();
+      try {
+        const pacer = createPacer(10); // 10 RPM => 6000ms minimum spacing between starts
+        const timestamps = [];
+
+        async function executeCall() {
+          await pacer();
+          timestamps.push(Date.now());
+        }
+
+        // Trigger two calls concurrently
+        const p1 = executeCall();
+        const p2 = executeCall();
+
+        // Advance timers incrementally
+        await vi.advanceTimersByTimeAsync(0);
+        expect(timestamps.length).toBe(1);
+
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(timestamps.length).toBe(1); // Second call still waiting
+
+        await vi.advanceTimersByTimeAsync(3000);
+        await Promise.all([p1, p2]);
+        expect(timestamps.length).toBe(2);
+
+        // Spacing between start times must be at least 6000ms
+        expect(timestamps[1] - timestamps[0]).toBeGreaterThanOrEqual(6000);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('waits for retryDelay and retries when encountering a per-minute 429 error', async () => {
+      const perMinute429 = new Error('429 Rate limit exceeded');
+      perMinute429.status = 429;
+      perMinute429.errorDetails = [{ retryDelay: '0.1s' }];
+
+      const sdk = makeFakeSdk({
+        generateContentResponses: [
+          perMinute429,
+          { text: JSON.stringify({ score: 95, status: 'pass' }) },
+        ],
+      });
+
+      const client = createLlmClient({
+        genai: sdk,
+        cfg: { ...testCfg, LLM_GENERATE_RPM: 600 }, // High RPM so pacing does not delay test
+        callRepo: { create: async () => {} },
+      });
+
+      const res = await client.generateStructured({
+        purpose: 'test_per_minute_429',
+        system: 'System',
+        prompt: 'Prompt',
+        schema: testSchema,
+      });
+
+      expect(res).toEqual({ score: 95, status: 'pass' });
+      expect(sdk.generateCalls.length).toBe(2);
+    });
+
+    it('immediately throws fatal QuotaExhaustedError and NEVER retries on per-day 429', async () => {
+      const perDay429 = new Error('Quota exceeded for quota metric GenerateRequestsPerDayPerProjectPerModel');
+      perDay429.status = 429;
+      perDay429.errorDetails = [
+        {
+          violations: [
+            {
+              quotaId: 'GenerateRequestsPerDayPerProjectPerModel',
+              description: 'Per-day quota reached for gemini-3.5-flash-lite',
+            },
+          ],
+        },
+      ];
+
+      const sdk = makeFakeSdk({
+        generateContentResponses: [perDay429],
+      });
+
+      const client = createLlmClient({
+        genai: sdk,
+        cfg: { ...testCfg, LLM_GENERATE_RPM: 600 },
+        callRepo: { create: async () => {} },
+      });
+
+      await expect(
+        client.generateStructured({
+          purpose: 'test_per_day_429',
+          system: 'System',
+          prompt: 'Prompt',
+          schema: testSchema,
+        })
+      ).rejects.toThrow(QuotaExhaustedError);
+
+      // Must have called exactly ONCE without retrying
+      expect(sdk.generateCalls.length).toBe(1);
+    });
   });
 });

@@ -14,6 +14,29 @@ const { logger: defaultLogger } = require('../utils/logger');
 // [ASSUMED] Batch limit of 100 texts per embedContent call based on Google API REST documentation (not typed as a constant in SDK).
 const EMBED_BATCH_SIZE = 100;
 
+/**
+ * Creates an asynchronous pacer that guarantees a minimum interval (60000 / rpm)
+ * between the start of consecutive calls, shared across all callers.
+ */
+function createPacer(rpm) {
+  const minSpacingMs = Math.ceil(60000 / Math.max(1, rpm));
+  let lastCallStartTime = 0;
+  let queue = Promise.resolve();
+
+  return function pace() {
+    const run = async () => {
+      const now = Date.now();
+      const waitMs = Math.max(0, lastCallStartTime + minSpacingMs - now);
+      if (waitMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+      lastCallStartTime = Date.now();
+    };
+    queue = queue.then(run, run);
+    return queue;
+  };
+}
+
 function createLlmClient({
   genai,
   cfg = {},
@@ -27,12 +50,17 @@ function createLlmClient({
       apiKey: cfg.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_GENAI_API_KEY,
     });
 
-  const model = cfg.GEMINI_MODEL || process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
+  const model = cfg.GEMINI_MODEL || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   const embeddingModel = cfg.EMBEDDING_MODEL || process.env.EMBEDDING_MODEL || 'gemini-embedding-001';
   const embeddingDims = cfg.EMBEDDING_DIMS || 768;
   const timeoutMs = cfg.LLM_TIMEOUT_MS || 30000;
   const concurrency = cfg.LLM_CONCURRENCY || 5;
   const limiter = createLimiter(concurrency);
+
+  const generateRpm = Number(cfg.LLM_GENERATE_RPM || process.env.LLM_GENERATE_RPM || 10);
+  const embedRpm = Number(cfg.LLM_EMBED_RPM || process.env.LLM_EMBED_RPM || 80);
+  const generatePacer = createPacer(generateRpm);
+  const embedPacer = createPacer(embedRpm);
 
   async function logCallSafely(data) {
     try {
@@ -58,6 +86,7 @@ function createLlmClient({
     thinkingLevel = 'LOW',
     user = null,
     runId = null,
+    requestId = null,
   }) {
     if (!schema) {
       throw new Error('A Zod schema is required for generateStructured');
@@ -88,6 +117,7 @@ function createLlmClient({
 
         callResult = await withRetry(
           async () => {
+            await generatePacer();
             return withTimeout(
               async ({ signal }) => {
                 config.abortSignal = signal;
@@ -127,6 +157,7 @@ function createLlmClient({
           await logCallSafely({
             user,
             runId,
+            requestId,
             purpose,
             model,
             attempt,
@@ -145,6 +176,7 @@ function createLlmClient({
         await logCallSafely({
           user,
           runId,
+          requestId,
           purpose,
           model,
           attempt,
@@ -166,6 +198,7 @@ function createLlmClient({
         await logCallSafely({
           user,
           runId,
+          requestId,
           purpose,
           model,
           attempt,
@@ -192,18 +225,20 @@ function createLlmClient({
    * @param {object} options
    * @returns {Promise<{ vectors: number[][], stats: { hits: number, misses: number, apiCalls: number } }>}
    */
-  async function embedTexts(texts, { user = null, runId = null, purpose = 'embed' } = {}) {
+  async function embedTexts(texts, { user = null, runId = null, requestId = null, purpose = 'embed' } = {}) {
     const rawList = Array.isArray(texts) ? texts : [texts];
     const textList = rawList.filter((t) => typeof t === 'string' && t.trim().length > 0);
 
     if (textList.length === 0) {
       return {
         vectors: [],
-        stats: { hits: 0, misses: 0, apiCalls: 0 },
+        stats: { hits: 0, misses: 0, apiCalls: 0, cacheErrors: 0 },
       };
     }
 
     const taskType = 'SEMANTIC_SIMILARITY';
+    let cacheErrors = 0;
+    let hasLoggedCacheWarning = false;
 
     // Compute key for each input text: sha256(model|dims|taskType|text)
     const itemKeys = textList.map((t) => {
@@ -227,14 +262,24 @@ function createLlmClient({
         if (Array.isArray(cachedDocs)) {
           for (const doc of cachedDocs) {
             if (doc && doc.key && doc.vector) {
-              const vectorArray = bufferToVector(doc.vector);
-              keyToVectorMap.set(doc.key, vectorArray);
+              try {
+                const vectorArray = bufferToVector(doc.vector);
+                keyToVectorMap.set(doc.key, vectorArray);
+              } catch (docErr) {
+                cacheErrors++;
+                if (!hasLoggedCacheWarning && logger && typeof logger.warn === 'function') {
+                  hasLoggedCacheWarning = true;
+                  logger.warn({ errorName: docErr.name || 'Error' }, 'Failed to decode cached vector');
+                }
+              }
             }
           }
         }
       } catch (cacheLookupErr) {
-        if (logger && typeof logger.warn === 'function') {
-          logger.warn({ err: cacheLookupErr.message }, 'Failed to look up EmbeddingCache');
+        cacheErrors++;
+        if (!hasLoggedCacheWarning && logger && typeof logger.warn === 'function') {
+          hasLoggedCacheWarning = true;
+          logger.warn({ errorName: cacheLookupErr.name || 'Error' }, 'Failed to look up EmbeddingCache');
         }
       }
     }
@@ -280,6 +325,7 @@ function createLlmClient({
           try {
             const response = await withRetry(
               async () => {
+                await embedPacer();
                 return withTimeout(
                   async ({ signal }) => {
                     return client.models.embedContent({
@@ -353,6 +399,7 @@ function createLlmClient({
             await logCallSafely({
               user,
               runId,
+              requestId,
               purpose,
               model: embeddingModel,
               attempt: 1,
@@ -368,6 +415,7 @@ function createLlmClient({
             await logCallSafely({
               user,
               runId,
+              requestId,
               purpose,
               model: embeddingModel,
               attempt: 1,
@@ -395,6 +443,7 @@ function createLlmClient({
         hits,
         misses,
         apiCalls,
+        cacheErrors,
       },
     };
   }
@@ -416,4 +465,5 @@ function createLlmClient({
 
 module.exports = {
   createLlmClient,
+  createPacer,
 };

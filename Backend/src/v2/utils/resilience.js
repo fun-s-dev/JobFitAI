@@ -73,7 +73,79 @@ async function withTimeout(fn, ms = 30000) {
 }
 
 /**
+ * Inspects an error for 429 quota exhaustion signals (per-minute vs per-day)
+ * and extracts any upstream retry delay from error details.
+ */
+function extractQuotaInfo(err) {
+  if (!err) return { is429: false, isPerDay: false, retryDelayMs: null, retryText: null };
+
+  const status =
+    err.status ||
+    err.statusCode ||
+    (err.response && err.response.status) ||
+    null;
+
+  const msg = err.message || '';
+  const is429 = status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+
+  if (!is429) {
+    return { is429: false, isPerDay: false, retryDelayMs: null, retryText: null };
+  }
+
+  let isPerDay = false;
+  let retryDelayMs = null;
+  let retryText = null;
+
+  // Inspect details array if present in standard Google RPC format
+  const details = err.errorDetails || err.details || err.response?.data?.error?.details || [];
+  if (Array.isArray(details)) {
+    for (const item of details) {
+      if (item.violations && Array.isArray(item.violations)) {
+        for (const v of item.violations) {
+          if (v.quotaId && v.quotaId.includes('PerDay')) {
+            isPerDay = true;
+            retryText = v.description || msg;
+          }
+        }
+      }
+      if (item.quotaId && item.quotaId.includes('PerDay')) {
+        isPerDay = true;
+        retryText = item.description || msg;
+      }
+      if (item.retryDelay) {
+        retryText = retryText || `Retry after ${JSON.stringify(item.retryDelay)}`;
+        if (typeof item.retryDelay === 'string') {
+          const sec = parseFloat(item.retryDelay.replace('s', ''));
+          if (!isNaN(sec)) retryDelayMs = Math.round(sec * 1000);
+        } else if (typeof item.retryDelay === 'number') {
+          retryDelayMs = Math.round(item.retryDelay * 1000);
+        } else if (item.retryDelay.seconds) {
+          retryDelayMs = Number(item.retryDelay.seconds) * 1000;
+        }
+      }
+    }
+  }
+
+  // Fallback string matching on message or direct quotaId property
+  if (!isPerDay && (msg.includes('PerDay') || (err.quotaId && err.quotaId.includes('PerDay')))) {
+    isPerDay = true;
+    retryText = msg;
+  }
+
+  if (!retryDelayMs) {
+    const header = err.response?.headers?.['retry-after'] || err.headers?.['retry-after'];
+    if (header) {
+      const sec = parseFloat(header);
+      if (!isNaN(sec)) retryDelayMs = Math.round(sec * 1000);
+    }
+  }
+
+  return { is429, isPerDay, retryDelayMs, retryText };
+}
+
+/**
  * Retries an async operation with exponential backoff and jitter for transient errors only.
+ * Immediately aborts on per-day quota exhaustion without retrying.
  */
 async function withRetry(
   fn,
@@ -87,6 +159,7 @@ async function withRetry(
     purpose = 'operation',
   } = {}
 ) {
+  const { QuotaExhaustedError } = require('../errors/LlmErrors');
   const totalBudget = retries + 1;
 
   for (let attempt = 1; attempt <= totalBudget; attempt++) {
@@ -96,6 +169,27 @@ async function withRetry(
       }
       return await fn({ attempt, totalBudget });
     } catch (err) {
+      const quota = extractQuotaInfo(err);
+      if (quota.isPerDay) {
+        const fatalError = new QuotaExhaustedError(
+          `Daily LLM quota exhausted: ${quota.retryText || err.message}`,
+          quota.retryText || err.message
+        );
+        if (logger && typeof logger.warn === 'function') {
+          logger.warn(
+            {
+              purpose,
+              attempt,
+              totalBudget,
+              error: err.message,
+              willRetry: false,
+            },
+            'Per-day quota limit hit; aborting immediately without retry.'
+          );
+        }
+        throw fatalError;
+      }
+
       const canRetry = attempt < totalBudget && shouldRetry(err);
 
       if (!canRetry) {
@@ -115,9 +209,10 @@ async function withRetry(
         throw err;
       }
 
-      // Calculate exponential backoff with full jitter
+      // Calculate delay: use explicit retryDelay from upstream 429 if present, else exponential backoff with jitter
       const baseDelay = minTimeout * Math.pow(factor, attempt - 1);
-      const delay = randomize ? Math.round(baseDelay * (0.5 + Math.random() * 0.5)) : baseDelay;
+      const standardDelay = randomize ? Math.round(baseDelay * (0.5 + Math.random() * 0.5)) : baseDelay;
+      const delay = quota.retryDelayMs !== null ? quota.retryDelayMs : standardDelay;
 
       if (logger && typeof logger.warn === 'function') {
         logger.warn(
@@ -142,6 +237,7 @@ async function withRetry(
 module.exports = {
   TimeoutError,
   isTransientError,
+  extractQuotaInfo,
   withTimeout,
   withRetry,
 };

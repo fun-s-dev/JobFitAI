@@ -27,7 +27,7 @@ function createClaimExtractionService({ llmClient, batchSize = 3 } = {}) {
    * @param {object} [options]
    * @returns {Promise<{ claims: Array<object>, incompleteBullets: string[] }>}
    */
-  async function extractClaimsFromBullets(bullets = [], { user = null, runId = null } = {}) {
+  async function extractClaimsFromBullets(bullets = [], { user = null, runId = null, requestId = null } = {}) {
     if (!Array.isArray(bullets) || bullets.length === 0) {
       return { claims: [], incompleteBullets: [] };
     }
@@ -58,6 +58,7 @@ function createClaimExtractionService({ llmClient, batchSize = 3 } = {}) {
         thinkingLevel: 'LOW',
         user,
         runId,
+        requestId,
       });
 
       // Reject any returned claim whose bulletId was not in the batch (hallucinated ID defense)
@@ -104,6 +105,7 @@ function createClaimExtractionService({ llmClient, batchSize = 3 } = {}) {
             thinkingLevel: 'LOW',
             user,
             runId,
+            requestId,
           });
 
           const retryClaims = (retryResult?.claims || []).filter(

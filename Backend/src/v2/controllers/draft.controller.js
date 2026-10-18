@@ -32,7 +32,7 @@ function createDraftController({
         selfDescription: report.selfDescription || '',
         jobDescription: report.jobDescription || '',
         user: String(userId),
-        runId: requestId,
+        requestId,
       });
 
 

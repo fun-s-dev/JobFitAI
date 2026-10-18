@@ -9,7 +9,13 @@ const llmCallSchema = new mongoose.Schema(
     },
     runId: {
       type: mongoose.Schema.Types.ObjectId,
+      ref: 'VerificationRun',
       default: null,
+    },
+    requestId: {
+      type: String,
+      default: null,
+      index: true,
     },
     purpose: {
       type: String,

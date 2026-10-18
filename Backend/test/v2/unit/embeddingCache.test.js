@@ -181,4 +181,39 @@ describe('EmbeddingCache & llmClient.embedTexts', () => {
     expect(ttlIndex).toBeDefined();
     expect(ttlIndex[1].expireAfterSeconds).toBe(90 * 86400);
   });
+
+  it('tracks cacheErrors and logs warning once with error name when cache lookup fails', async () => {
+    const warnings = [];
+    const testLogger = {
+      warn: (obj, msg) => warnings.push({ obj, msg }),
+      info: () => {},
+      error: () => {},
+    };
+
+    fakeCacheRepo.find = () => {
+      const err = new TypeError('Simulated cache network failure');
+      err.name = 'MongoNetworkTimeoutError';
+      throw err;
+    };
+
+    const client = createLlmClient({
+      genai: fakeGenai,
+      cacheRepo: fakeCacheRepo,
+      callRepo: fakeCallRepo,
+      logger: testLogger,
+    });
+
+    const res = await client.embedTexts(['Text with broken cache']);
+    // Call succeeds without breaking
+    expect(res.vectors).toHaveLength(1);
+    expect(res.stats.misses).toBe(1);
+    expect(res.stats.apiCalls).toBe(1);
+    expect(res.stats.cacheErrors).toBe(1);
+
+    // Warning logged once with error name only
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].obj).toEqual({ errorName: 'MongoNetworkTimeoutError' });
+    expect(warnings[0].msg).toBe('Failed to look up EmbeddingCache');
+  });
 });
+

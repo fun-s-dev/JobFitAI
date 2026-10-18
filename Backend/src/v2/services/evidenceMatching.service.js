@@ -54,15 +54,18 @@ function createEvidenceMatchingService({
    * @param {number} [options.k=3] - Number of top chunks to return
    * @returns {Promise<Array<{ chunk: object, rawCosine: number, similarityScore: number }>>}
    */
-  async function matchClaim(claimText, chunksWithVectors = [], { k = 3 } = {}) {
+  async function matchClaim(claimText, chunksWithVectors = [], { k = 3, claimVector = null } = {}) {
     if (!claimText || typeof claimText !== 'string' || chunksWithVectors.length === 0) {
       return [];
     }
 
-    const { vectors } = await llmClient.embedTexts([claimText]);
-    const claimVector = vectors[0];
+    let vector = claimVector;
+    if (!vector) {
+      const { vectors } = await llmClient.embedTexts([claimText]);
+      vector = vectors[0];
+    }
 
-    return rankBySimilarity(claimVector, chunksWithVectors, {
+    return rankBySimilarity(vector, chunksWithVectors, {
       k,
       lo,
       hi,
