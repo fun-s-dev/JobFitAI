@@ -22,6 +22,10 @@ router.use('/drafts', draftRouter);
 const verificationRouter = require('./verification.routes');
 router.use('/verification', verificationRouter);
 
+// Jobs endpoints
+const jobRouter = require('./job.routes');
+router.use('/jobs', jobRouter);
+
 // v2 Not Found handler for unknown /api/v2 routes
 
 router.use(notFoundHandler);

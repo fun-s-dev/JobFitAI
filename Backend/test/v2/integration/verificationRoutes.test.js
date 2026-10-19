@@ -7,7 +7,7 @@ const InterviewReport = require('../../../src/models/interviewReport.model');
 const ResumeDraft = require('../../../src/v2/models/resumeDraft.model');
 const VerificationRun = require('../../../src/v2/models/verificationRun.model');
 const ResumeClaim = require('../../../src/v2/models/resumeClaim.model');
-const { setVerificationService } = require('../../../src/v2/controllers/verification.controller');
+const { setVerificationService, setVerificationSyncMode } = require('../../../src/v2/controllers/verification.controller');
 const { createVerificationService } = require('../../../src/v2/services/verification.service');
 
 describe('v2 Verification Routes Integration Tests (/api/v2/verification)', () => {
@@ -171,11 +171,14 @@ describe('v2 Verification Routes Integration Tests (/api/v2/verification)', () =
       version: 1,
     });
 
+    // Enable synchronous verification path for M5 test assertions
+    setVerificationSyncMode(true);
     // Default mock pipeline
     setVerificationService(createMockPipelineServices());
   });
 
   afterEach(() => {
+    setVerificationSyncMode(false);
     setVerificationService(null);
   });
 

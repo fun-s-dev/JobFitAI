@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.104.4",
     "axios": "^1.18.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -18,7 +19,10 @@
     "sass": "^1.101.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "jsdom": "^29.1.1",
     "oxlint": "^1.69.0",
     "vite": "^8.1.0",
     "vitest": "^5.0.3"

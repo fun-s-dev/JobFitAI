@@ -244,6 +244,7 @@ function createVerificationService({
     userId,
     draftId = null,
     githubAnalysisIds = [],
+    onProgress = null,
   } = {}) {
     if (!reportId || !userId) {
       throw new VerificationError('reportId and userId are required', 400, 'INVALID_INPUT');
@@ -306,6 +307,9 @@ function createVerificationService({
         extractedClaims = extraction.claims || [];
       }
     } catch (err) {
+      if (err && (err.name === 'QuotaExhaustedError' || err.code === 'LLM_QUOTA_EXHAUSTED')) {
+        throw err;
+      }
       if (logger && typeof logger.error === 'function') {
         logger.error({ err: err.message }, 'Claim extraction failed during verification');
       }
@@ -338,6 +342,9 @@ function createVerificationService({
         const prepared = await evidenceMatchingService.prepareEvidenceChunks(allChunks);
         chunksWithVectors = prepared.chunksWithVectors;
       } catch (err) {
+        if (err && (err.name === 'QuotaExhaustedError' || err.code === 'LLM_QUOTA_EXHAUSTED')) {
+          throw err;
+        }
         if (logger && typeof logger.error === 'function') {
           logger.error({ err: err.message }, 'Evidence embedding failed during verification');
         }
@@ -361,6 +368,9 @@ function createVerificationService({
         });
         claimVectors = embedded.vectors || [];
       } catch (err) {
+        if (err && (err.name === 'QuotaExhaustedError' || err.code === 'LLM_QUOTA_EXHAUSTED')) {
+          throw err;
+        }
         if (logger && typeof logger.error === 'function') {
           logger.error({ err: err.message }, 'Claim embedding batch failed during verification');
         }
@@ -375,11 +385,20 @@ function createVerificationService({
 
     // 6. Verify each claim in memory with bounded concurrency
     let verifiedClaimData = [];
+    let doneClaimsCount = 0;
+    const totalClaims = extractedClaims.length;
+
+    if (typeof onProgress === 'function') {
+      try {
+        await onProgress({ done: 0, total: totalClaims });
+      } catch {}
+    }
+
     try {
       verifiedClaimData = await Promise.all(
         extractedClaims.map((claim, idx) =>
-          limiter(() =>
-            verifyOne({
+          limiter(async () => {
+            const evaluated = await verifyOne({
               claim,
               claimVector: claimVectors[idx] || null,
               chunksWithVectors,
@@ -393,11 +412,21 @@ function createVerificationService({
               weights: defaultWeights,
               thresholds: defaultThresholds,
               context: { user: userId, reportId },
-            })
-          )
+            });
+            doneClaimsCount++;
+            if (typeof onProgress === 'function') {
+              try {
+                await onProgress({ done: doneClaimsCount, total: totalClaims });
+              } catch {}
+            }
+            return evaluated;
+          })
         )
       );
     } catch (err) {
+      if (err && (err.name === 'QuotaExhaustedError' || err.code === 'LLM_QUOTA_EXHAUSTED')) {
+        throw err;
+      }
       if (logger && typeof logger.error === 'function') {
         logger.error({ err: err.message }, 'Claim evaluation failed during verification');
       }

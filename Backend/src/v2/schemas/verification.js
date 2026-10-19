@@ -8,11 +8,13 @@ const reportParamsSchema = z.object({
 
 const verifyQuerySchema = z.object({
   runId: z.string().regex(objectIdRegex, 'Invalid runId format').optional(),
+  sync: z.preprocess((val) => val === 'true' || val === true, z.boolean()).optional(),
 });
 
 const verifyBodySchema = z.object({
   draftId: z.string().regex(objectIdRegex, 'Invalid draftId format').optional(),
   githubAnalysisIds: z.array(z.string().regex(objectIdRegex, 'Invalid githubAnalysisId format')).optional(),
+  sync: z.boolean().optional(),
 });
 
 const claimParamsSchema = z.object({

@@ -33,7 +33,7 @@ router.post(
   '/:reportId',
   authUser,
   verifyLimiter,
-  validate({ params: reportParamsSchema, body: verifyBodySchema }),
+  validate({ params: reportParamsSchema, body: verifyBodySchema, query: verifyQuerySchema }),
   loadOwnedReport,
   postVerifyReport
 );

@@ -19,9 +19,14 @@ const defaultVerificationService = createVerificationService({
 });
 
 let activeVerificationService = defaultVerificationService;
+let activeSyncMode = false;
 
 function setVerificationService(service) {
   activeVerificationService = service || defaultVerificationService;
+}
+
+function setVerificationSyncMode(enabled = false) {
+  activeSyncMode = Boolean(enabled);
 }
 
 function createVerificationController({
@@ -29,30 +34,55 @@ function createVerificationController({
   claimModel = ResumeClaim,
   runModel = VerificationRun,
   reportModel = InterviewReport,
+  syncMode = null,
 } = {}) {
   /**
    * POST /api/v2/verification/:reportId
-   * Runs synchronous verification for an owned interview report.
+   * Runs verification for an owned interview report. Returns 202 { jobId } by default,
+   * or 200 { run, claims } when sync flag is enabled (query, body, or test controller flag).
    */
   async function postVerifyReport(req, res, next) {
     const requestId = req.id || req.headers['x-request-id'] || 'unknown';
     try {
       const reportId = req.params.reportId;
       const userId = req.user ? (req.user._id || req.user.id) : null;
-      const { draftId = null, githubAnalysisIds = [] } = req.body || {};
+      const { draftId = null, githubAnalysisIds = [], sync: bodySync } = req.body || {};
+      const querySync = req.query?.sync === true || req.query?.sync === 'true';
+      const isSync =
+        bodySync === true ||
+        querySync ||
+        (syncMode !== null ? syncMode : activeSyncMode);
 
       const serviceToUse = verificationService || activeVerificationService;
 
-      const result = await serviceToUse.verifyReport({
-        reportId,
+      if (isSync) {
+        const result = await serviceToUse.verifyReport({
+          reportId,
+          userId: String(userId),
+          draftId,
+          githubAnalysisIds,
+        });
+
+        return res.status(200).json({
+          run: result.run,
+          claims: result.claims,
+          requestId,
+        });
+      }
+
+      // Async background job (202 Accepted)
+      const { startVerificationJob } = require('../services/jobRunner');
+      const { job } = await startVerificationJob({
         userId: String(userId),
-        draftId,
-        githubAnalysisIds,
+        reportId,
+        verificationService: serviceToUse,
       });
 
-      return res.status(200).json({
-        run: result.run,
-        claims: result.claims,
+      return res.status(202).json({
+        message: 'Verification job initiated',
+        jobId: job._id,
+        status: job.status,
+        progress: job.progress,
         requestId,
       });
     } catch (err) {
@@ -227,4 +257,5 @@ module.exports = {
   patchClaimOverride: defaultController.patchClaimOverride,
   getClaimById: defaultController.getClaimById,
   setVerificationService,
+  setVerificationSyncMode,
 };

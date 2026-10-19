@@ -46,6 +46,7 @@ const envSchema = z
     W_SIM_NOGH: z.coerce.number().min(0).max(1).default(0.40),
     W_ENT_NOGH: z.coerce.number().min(0).max(1).default(0.60),
     PUPPETEER_NO_SANDBOX: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(false),
+    PDF_RENDERING_ENABLED: z.preprocess((val) => val === undefined ? true : val === 'true' || val === true, z.boolean()).default(true),
     ENTAILMENT_THINKING_LEVEL: z.enum(['LOW', 'MEDIUM', 'HIGH', 'OFF']).default('LOW'),
     ENTAILMENT_SCORE_YES: z.coerce.number().min(0).max(1).default(1.0),
     ENTAILMENT_SCORE_PARTIAL: z.coerce.number().min(0).max(1).default(0.5),
