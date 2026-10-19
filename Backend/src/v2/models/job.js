@@ -36,6 +36,16 @@ const jobSchema = new mongoose.Schema(
       default: 'verification',
       required: true,
     },
+    repoUrl: {
+      type: String,
+      default: null,
+    },
+    githubAnalysisIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'GithubAnalysis',
+      },
+    ],
     status: {
       type: String,
       enum: ['queued', 'running', 'done', 'failed'],

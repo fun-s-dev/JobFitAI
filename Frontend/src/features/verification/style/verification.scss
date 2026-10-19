@@ -688,3 +688,175 @@ $status-override: #58a6ff;
     }
   }
 }
+
+// GitHub Link Form & Project Evidence
+.github-link-form {
+  background-color: $bg-card;
+  border: 1px solid $border-color;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+
+  &__header {
+    margin-bottom: 0.75rem;
+  }
+
+  &__title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem 0;
+    color: $text-primary;
+  }
+
+  &__desc {
+    font-size: 0.85rem;
+    color: $text-muted;
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  &__row {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  &__input {
+    flex: 1;
+    min-width: 260px;
+    background-color: $bg-panel;
+    border: 1px solid $border-color;
+    border-radius: 0.5rem;
+    color: $text-primary;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.9rem;
+
+    &:focus {
+      outline: none;
+      border-color: $accent;
+      box-shadow: 0 0 0 2px rgba($accent, 0.25);
+    }
+  }
+
+  &__btn {
+    white-space: nowrap;
+  }
+
+  &__error {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.85rem;
+    background-color: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 0.4rem;
+    color: #f87171;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  &__progress {
+    margin-top: 0.85rem;
+  }
+
+  &__progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: $text-muted;
+    margin-bottom: 0.35rem;
+  }
+
+  &__progress-bar {
+    width: 100%;
+    height: 6px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  &__progress-fill {
+    height: 100%;
+    background-color: $accent;
+    transition: width 0.3s ease;
+  }
+
+  &__success {
+    margin-top: 0.85rem;
+    padding: 0.75rem 1rem;
+    background-color: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 0.5rem;
+    color: $status-verified;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+
+    &-meta {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+      font-size: 0.75rem;
+      color: $text-muted;
+    }
+  }
+}
+
+.evidence-panel__section--project {
+  border-left: 3px solid #60a5fa;
+  padding-left: 0.75rem;
+  margin-top: 0.75rem;
+
+  .evidence-panel__score--proj {
+    color: #60a5fa;
+  }
+}
+
+.evidence-panel__contradiction-box {
+  background-color: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  color: #f87171;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+
+  .evidence-panel__contradiction-title {
+    font-weight: 600;
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  .evidence-panel__contradiction-list {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+}
+
+.evidence-chunk--project {
+  border-left: 2px solid #60a5fa;
+
+  .evidence-chunk__lines {
+    color: #93c5fd;
+    font-weight: 500;
+  }
+
+  .evidence-chunk__type-badge {
+    background-color: rgba(96, 165, 250, 0.2);
+    color: #93c5fd;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+  }
+
+  .evidence-chunk__strength-badge {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: $text-muted;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    font-size: 0.65rem;
+  }
+}

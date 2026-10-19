@@ -6,6 +6,7 @@ import { useJob } from '../hooks/useJob';
 import { useClaimDecision } from '../hooks/useClaimDecision';
 import SummaryBar from '../components/SummaryBar';
 import ClaimRow from '../components/ClaimRow';
+import GithubLinkForm from '../components/GithubLinkForm';
 import {
   startVerificationJob,
   getPrintDraftUrl,
@@ -27,6 +28,7 @@ export default function VerificationPage() {
   const [draftNotice, setDraftNotice] = useState(null);
   const [draftError, setDraftError] = useState(null);
   const [printNotice, setPrintNotice] = useState(null);
+  const [linkedAnalysisIds, setLinkedAnalysisIds] = useState([]);
 
   const {
     run,
@@ -56,7 +58,9 @@ export default function VerificationPage() {
     setDraftError(null);
     setPrintNotice(null);
     try {
-      const data = await startVerificationJob(reportId);
+      const data = await startVerificationJob(reportId, {
+        githubAnalysisIds: linkedAnalysisIds.length > 0 ? linkedAnalysisIds : undefined,
+      });
       if (data.jobId) {
         setActiveJobId(data.jobId);
       }
@@ -239,6 +243,16 @@ export default function VerificationPage() {
             <p>Loading verification audit records...</p>
           </div>
         )}
+
+        {/* GitHub Repository Evidence Form */}
+        <GithubLinkForm
+          reportId={reportId}
+          onAnalysisComplete={(analysis) => {
+            if (analysis?._id) {
+              setLinkedAnalysisIds((prev) => Array.from(new Set([...prev, analysis._id])));
+            }
+          }}
+        />
 
         {/* Summary Bar */}
         {(claims.length > 0 || activeJob.isRunning) && (

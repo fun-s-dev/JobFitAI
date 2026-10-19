@@ -51,9 +51,13 @@ export default function EvidencePanel({
   entailment = {},
   resumeEvidence = [],
   caps = [],
+  projectEvidence = {},
+  projectItems = [],
 }) {
   const quote = entailment?.evidenceQuote || '';
   const missing = entailment?.missingElements || [];
+  const contradictions = projectEvidence?.contradictions || [];
+  const hasProjectScore = typeof projectEvidence?.score === 'number';
 
   return (
     <div className="evidence-panel" role="region" aria-label="Evidence details">
@@ -104,6 +108,61 @@ export default function EvidencePanel({
           </div>
         )}
       </div>
+
+      {/* Project Evidence (GitHub AST, Dependencies, README) */}
+      {(hasProjectScore || contradictions.length > 0 || projectItems.length > 0) && (
+        <div className="evidence-panel__section evidence-panel__section--project">
+          <div className="evidence-panel__header">
+            <span className="evidence-panel__title">GitHub Project Evidence:</span>
+            {hasProjectScore ? (
+              <span className="evidence-panel__score evidence-panel__score--proj">
+                (Corroboration: {(projectEvidence.score * 100).toFixed(0)}%)
+              </span>
+            ) : (
+              <span className="evidence-panel__score">(Not Applicable)</span>
+            )}
+          </div>
+
+          {/* Contradictions Warning */}
+          {contradictions.length > 0 && (
+            <div className="evidence-panel__contradiction-box" role="alert">
+              <span className="evidence-panel__contradiction-title">⚠️ Contradictions Detected:</span>
+              <ul className="evidence-panel__contradiction-list">
+                {contradictions.map((c, idx) => (
+                  <li key={idx}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Supporting Project Artifacts */}
+          {projectItems.length > 0 && (
+            <div className="evidence-panel__chunks">
+              {projectItems.map((item, idx) => (
+                <div key={idx} className="evidence-chunk evidence-chunk--project">
+                  <div className="evidence-chunk__meta">
+                    <span className="evidence-chunk__source">
+                      📁 {item.sourcePath}
+                      {item.lineStart && (
+                        <span className="evidence-chunk__lines">
+                          {' '}(Lines {item.lineStart}{item.lineEnd && item.lineEnd !== item.lineStart ? `–${item.lineEnd}` : ''})
+                        </span>
+                      )}
+                    </span>
+                    <span className="evidence-chunk__type-badge">
+                      {item.type?.toUpperCase()}
+                    </span>
+                    <span className="evidence-chunk__strength-badge">
+                      Strength: {item.strength}
+                    </span>
+                  </div>
+                  <p className="evidence-chunk__text">{item.claimSupport}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Resume Source Chunks with Highlighted Quotes */}
       {resumeEvidence.length > 0 && (

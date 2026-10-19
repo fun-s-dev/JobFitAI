@@ -75,6 +75,7 @@ function createVerificationController({
       const { job } = await startVerificationJob({
         userId: String(userId),
         reportId,
+        githubAnalysisIds,
         verificationService: serviceToUse,
       });
 

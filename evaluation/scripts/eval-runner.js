@@ -199,17 +199,23 @@ async function runEvaluation() {
   });
 
   // Load and prepare fixtures
-  console.log('Loading and preparing fixture evidence chunks...');
+  console.log('Loading and preparing fixture evidence chunks and GitHub fixtures...');
   const fixturesDir = path.resolve(__dirname, '../fixtures');
   const fixtureChunks = {};
+  const githubFixtures = {};
 
   for (const f of fs.readdirSync(fixturesDir)) {
     if (f.endsWith('.json')) {
       const fixtureData = JSON.parse(fs.readFileSync(path.join(fixturesDir, f), 'utf8'));
-      const normalized = normalizeText(fixtureData.rawText);
-      const rawChunks = chunkText(normalized, { source: 'resume', maxChars: appConfig.MAX_CHUNK_CHARS || 500 });
-      const prepared = await evidenceMatchingService.prepareEvidenceChunks(rawChunks);
-      fixtureChunks[fixtureData.id] = prepared.chunksWithVectors;
+      if (fixtureData.rawText) {
+        const normalized = normalizeText(fixtureData.rawText);
+        const rawChunks = chunkText(normalized, { source: 'resume', maxChars: appConfig.MAX_CHUNK_CHARS || 500 });
+        const prepared = await evidenceMatchingService.prepareEvidenceChunks(rawChunks);
+        fixtureChunks[fixtureData.id] = prepared.chunksWithVectors;
+      }
+      if (fixtureData.evidenceItems) {
+        githubFixtures[fixtureData.id] = fixtureData.evidenceItems;
+      }
     }
   }
 
@@ -268,15 +274,21 @@ async function runEvaluation() {
         };
       });
 
+      const githubItems =
+        config.signals?.projectEvidence && item.evidence?.github
+          ? githubFixtures[item.evidence.github] || null
+          : null;
+
       const verifiedRecord = await verificationService.verifyOne({
         claim: {
           bulletId: item.id,
           claimText: item.claim,
           claimType: item.caseType === 'metric_fabricated' ? 'metric' : 'technology',
-          skills: [],
+          skills: item.evidence?.skills || item.skills || [],
           numbers: [],
         },
         chunksWithVectors,
+        githubItems,
         signals: config.signals,
         weights: config.weights || undefined,
         thresholds: config.thresholds || undefined,
@@ -296,6 +308,8 @@ async function runEvaluation() {
         caps: verifiedRecord.caps || [],
         verdict: verifiedRecord.entailment?.verdict || null,
         quoteUngrounded: verifiedRecord.entailment?.quoteUngrounded || false,
+        projectEvidenceScore: verifiedRecord.projectEvidence?.score ?? null,
+        contradictions: verifiedRecord.projectEvidence?.contradictions || [],
       };
 
       predictions.push(prediction);
@@ -349,10 +363,26 @@ async function runEvaluation() {
     s.rejectionRate = Number((s.rejected / s.total).toFixed(3));
   }
 
-  // Prompt injection analysis
-  const injectionCases = predictions.filter((p) => p.caseType === 'prompt_injection');
-  const injectionUpgraded = injectionCases.filter((p) => p.status === 'verified').length;
-  const injectionAttackSuccessRate = injectionCases.length > 0 ? injectionUpgraded / injectionCases.length : 0;
+  // Injection analysis (Prompt injection & README injection)
+  const promptInjCases = predictions.filter((p) => p.caseType === 'prompt_injection');
+  const promptInjUpgraded = promptInjCases.filter((p) => p.status === 'verified').length;
+  const promptInjAttackRate = promptInjCases.length > 0 ? promptInjUpgraded / promptInjCases.length : 0;
+
+  const readmeInjCases = predictions.filter((p) => p.caseType === 'readme_injection');
+  const readmeInjUpgraded = readmeInjCases.filter((p) => p.status === 'verified').length;
+  const readmeInjAttackRate = readmeInjCases.length > 0 ? readmeInjUpgraded / readmeInjCases.length : 0;
+
+  const depOnlyCases = predictions.filter((p) => p.caseType === 'dependency_only');
+  const depOnlyUpgraded = depOnlyCases.filter((p) => p.status === 'verified').length;
+  const depOnlyLeakRate = depOnlyCases.length > 0 ? depOnlyUpgraded / depOnlyCases.length : 0;
+
+  const readmeOnlyCases = predictions.filter((p) => p.caseType === 'readme_only');
+  const readmeOnlyUpgraded = readmeOnlyCases.filter((p) => p.status === 'verified').length;
+  const readmeOnlyLeakRate = readmeOnlyCases.length > 0 ? readmeOnlyUpgraded / readmeOnlyCases.length : 0;
+
+  const sourceConfirmedCases = predictions.filter((p) => p.caseType === 'source_confirmed');
+  const sourceConfirmedVerified = sourceConfirmedCases.filter((p) => p.status === 'verified').length;
+  const sourceConfirmedVerifiedRate = sourceConfirmedCases.length > 0 ? sourceConfirmedVerified / sourceConfirmedCases.length : 0;
 
   const finalReport = {
     evaluationTimestamp: new Date().toISOString(),
@@ -403,9 +433,20 @@ async function runEvaluation() {
     eceReliabilityBins: eceResult.bins,
     perCaseType,
     promptInjection: {
-      total: injectionCases.length,
-      upgradedToVerified: injectionUpgraded,
-      attackSuccessRate: Number(injectionAttackSuccessRate.toFixed(4)),
+      total: promptInjCases.length,
+      upgradedToVerified: promptInjUpgraded,
+      attackSuccessRate: Number(promptInjAttackRate.toFixed(4)),
+    },
+    readmeInjection: {
+      total: readmeInjCases.length,
+      upgradedToVerified: readmeInjUpgraded,
+      attackSuccessRate: Number(readmeInjAttackRate.toFixed(4)),
+    },
+    githubEvidenceBreakdown: {
+      dependencyOnly: { total: depOnlyCases.length, upgradedToVerified: depOnlyUpgraded, leakRate: Number(depOnlyLeakRate.toFixed(4)) },
+      readmeOnly: { total: readmeOnlyCases.length, upgradedToVerified: readmeOnlyUpgraded, leakRate: Number(readmeOnlyLeakRate.toFixed(4)) },
+      sourceConfirmed: { total: sourceConfirmedCases.length, verified: sourceConfirmedVerified, verifiedRate: Number(sourceConfirmedVerifiedRate.toFixed(4)) },
+      readmeInjection: { total: readmeInjCases.length, upgradedToVerified: readmeInjUpgraded, leakRate: Number(readmeInjAttackRate.toFixed(4)) },
     },
     predictions,
   };
@@ -423,7 +464,11 @@ async function runEvaluation() {
   console.log(`Leak Rate:               ${(finalReport.metrics.leakRate.value * 100).toFixed(1)}% [95% CI: ${(finalReport.metrics.leakRate.ci95[0] * 100).toFixed(1)}% - ${(finalReport.metrics.leakRate.ci95[1] * 100).toFixed(1)}%]`);
   console.log(`Review Rate:             ${(finalReport.metrics.reviewRate * 100).toFixed(1)}%`);
   console.log(`ECE:                     ${finalReport.metrics.ece.toFixed(4)}`);
-  console.log(`Injection Attack Success:${(finalReport.promptInjection.attackSuccessRate * 100).toFixed(1)}% (${finalReport.promptInjection.upgradedToVerified}/${finalReport.promptInjection.total} leaked)`);
+  console.log(`Prompt Injection Leak:   ${(finalReport.promptInjection.attackSuccessRate * 100).toFixed(1)}% (${finalReport.promptInjection.upgradedToVerified}/${finalReport.promptInjection.total})`);
+  console.log(`README Injection Leak:   ${(finalReport.readmeInjection.attackSuccessRate * 100).toFixed(1)}% (${finalReport.readmeInjection.upgradedToVerified}/${finalReport.readmeInjection.total})`);
+  console.log(`Dependency-Only Leak:    ${(depOnlyLeakRate * 100).toFixed(1)}% (${depOnlyUpgraded}/${depOnlyCases.length})`);
+  console.log(`Readme-Only Leak:        ${(readmeOnlyLeakRate * 100).toFixed(1)}% (${readmeOnlyUpgraded}/${readmeOnlyCases.length})`);
+  console.log(`Source Confirmed Rec:    ${(sourceConfirmedVerifiedRate * 100).toFixed(1)}% (${sourceConfirmedVerified}/${sourceConfirmedCases.length})`);
   console.log(`Cache: ${statsCollector.cacheHits} hits, ${statsCollector.cacheMisses} misses (${statsCollector.liveApiCalls} live calls, ${durationMs}ms total)`);
   console.log(`Report written to: ${finalReportPath}\n`);
 

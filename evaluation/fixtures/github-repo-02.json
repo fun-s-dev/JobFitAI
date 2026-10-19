@@ -1,0 +1,68 @@
+{
+  "id": "fixture:github-repo-02",
+  "repositoryFullName": "pallets/flask-website",
+  "commitSha": "f0e1d2c3b4a59687786950413223140596877869",
+  "defaultBranch": "main",
+  "languages": { "Python": 12000 },
+  "dependencies": [
+    { "name": "flask", "version": ">=2.0.0", "ecosystem": "pypi", "skills": ["Flask", "REST APIs"] },
+    { "name": "pytest", "version": ">=7.0.0", "ecosystem": "pypi", "skills": ["Unit Testing"] }
+  ],
+  "evidenceItems": [
+    {
+      "_id": "item_repo2_01",
+      "type": "dependency",
+      "skill": "Flask",
+      "claimSupport": "Python package \"flask\" in requirements.txt",
+      "sourcePath": "requirements.txt",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.5,
+      "contradiction": false
+    },
+    {
+      "_id": "item_repo2_02",
+      "type": "dependency",
+      "skill": "REST APIs",
+      "claimSupport": "Python package \"flask\" in requirements.txt",
+      "sourcePath": "requirements.txt",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.3,
+      "contradiction": false
+    },
+    {
+      "_id": "item_repo2_03",
+      "type": "dependency",
+      "skill": "Unit Testing",
+      "claimSupport": "Python package \"pytest\" in requirements.txt",
+      "sourcePath": "requirements.txt",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.4,
+      "contradiction": false
+    },
+    {
+      "_id": "item_repo2_04",
+      "type": "source_file",
+      "skill": "REST APIs",
+      "claimSupport": "GET /api/v1/health route in src/app.py",
+      "sourcePath": "src/app.py",
+      "lineStart": 12,
+      "lineEnd": 15,
+      "strength": 0.8,
+      "contradiction": false
+    },
+    {
+      "_id": "item_repo2_05",
+      "type": "readme",
+      "skill": "GraphQL",
+      "claimSupport": "Mentioned in README.md but not found in manifest or AST",
+      "sourcePath": "README.md",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.0,
+      "contradiction": true
+    }
+  ]
+}

@@ -30,6 +30,7 @@ async function runVerificationJob({ jobId, verificationService, jobModel = defau
     const result = await verificationService.verifyReport({
       reportId: String(job.report),
       userId: String(job.user),
+      githubAnalysisIds: job.githubAnalysisIds || [],
       onProgress: async ({ done, total }) => {
         try {
           await jobModel.updateOne(
@@ -101,6 +102,7 @@ async function runVerificationJob({ jobId, verificationService, jobModel = defau
 async function startVerificationJob({
   userId,
   reportId,
+  githubAnalysisIds = [],
   verificationService,
   jobModel = defaultJobModel,
 }) {
@@ -122,6 +124,7 @@ async function startVerificationJob({
       user: userId,
       report: reportId,
       type: 'verification',
+      githubAnalysisIds,
       status: 'queued',
       progress: { done: 0, total: 0 },
     });
@@ -157,6 +160,131 @@ async function startVerificationJob({
 }
 
 /**
+ * Runs a single GitHub analysis job asynchronously in-process.
+ */
+async function runGitHubAnalysisJob({
+  jobId,
+  githubEvidenceService,
+  jobModel = defaultJobModel,
+}) {
+  const service = githubEvidenceService || require('./githubEvidence.service').githubEvidenceService;
+  const job = await jobModel.findById(jobId);
+  if (!job || job.status !== 'queued') {
+    return;
+  }
+
+  job.status = 'running';
+  job.startedAt = new Date();
+  await job.save();
+
+  try {
+    const result = await service.analyzeRepository({
+      repoUrl: job.repoUrl,
+      reportId: String(job.report),
+      userId: String(job.user),
+      onProgress: async ({ done, total }) => {
+        try {
+          await jobModel.updateOne(
+            { _id: job._id },
+            { $set: { 'progress.done': done, 'progress.total': total } }
+          );
+        } catch {}
+      },
+    });
+
+    job.status = 'done';
+    job.resultRef = result.analysis._id;
+    job.finishedAt = new Date();
+    await jobModel.updateOne(
+      { _id: job._id },
+      {
+        $set: {
+          status: 'done',
+          resultRef: job.resultRef,
+          finishedAt: job.finishedAt,
+        },
+      }
+    );
+  } catch (err) {
+    job.status = 'failed';
+    job.error = {
+      code: err.name || 'GITHUB_ANALYSIS_FAILED',
+      message: err.message || 'GitHub analysis job failed',
+    };
+    job.finishedAt = new Date();
+    await jobModel.updateOne(
+      { _id: job._id },
+      {
+        $set: {
+          status: 'failed',
+          error: job.error,
+          finishedAt: job.finishedAt,
+        },
+      }
+    );
+  }
+}
+
+/**
+ * Starts a GitHub analysis job idempotently.
+ */
+async function startGitHubAnalysisJob({
+  userId,
+  reportId,
+  repoUrl,
+  githubEvidenceService,
+  jobModel = defaultJobModel,
+}) {
+  const existingJob = await jobModel.findOne({
+    report: reportId,
+    type: 'github_analysis',
+    status: { $in: ['queued', 'running'] },
+  });
+
+  if (existingJob) {
+    return { job: existingJob, isNew: false };
+  }
+
+  let newJob;
+  try {
+    newJob = await jobModel.create({
+      user: userId,
+      report: reportId,
+      type: 'github_analysis',
+      repoUrl,
+      status: 'queued',
+      progress: { done: 0, total: 0 },
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      const raceJob = await jobModel.findOne({
+        report: reportId,
+        type: 'github_analysis',
+        status: { $in: ['queued', 'running'] },
+      });
+      if (raceJob) {
+        return { job: raceJob, isNew: false };
+      }
+    }
+    throw err;
+  }
+
+  setImmediate(async () => {
+    try {
+      await runGitHubAnalysisJob({
+        jobId: newJob._id,
+        githubEvidenceService,
+        jobModel,
+      });
+    } catch (bgErr) {
+      console.error('Unhandled background GitHub analysis job error:', bgErr);
+    }
+  });
+
+  return { job: newJob, isNew: true };
+}
+
+/**
  * Server boot cleanup: marks any jobs left in 'running' state as failed ('interrupted').
  * Called during server startup after database connection is established.
  *
@@ -184,5 +312,7 @@ async function cleanupInterruptedJobs({ jobModel = defaultJobModel } = {}) {
 module.exports = {
   runVerificationJob,
   startVerificationJob,
+  runGitHubAnalysisJob,
+  startGitHubAnalysisJob,
   cleanupInterruptedJobs,
 };

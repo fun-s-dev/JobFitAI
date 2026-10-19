@@ -81,3 +81,19 @@ export async function createDraftForReport(reportId) {
   const response = await api.post(`/api/v2/drafts/${reportId}`);
   return response.data;
 }
+
+/**
+ * Initiates an async GitHub analysis job. Returns 202 { jobId, status }
+ */
+export async function startGitHubAnalysis(reportId, repoUrl) {
+  const response = await api.post('/api/v2/github/analyze', { reportId, repoUrl });
+  return response.data;
+}
+
+/**
+ * Fetches an analysis record by analysisId.
+ */
+export async function getGitHubAnalysis(analysisId) {
+  const response = await api.get(`/api/v2/github/analysis/${analysisId}`);
+  return response.data;
+}

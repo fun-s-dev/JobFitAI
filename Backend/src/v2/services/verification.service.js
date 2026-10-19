@@ -9,6 +9,9 @@ const defaultResumeClaim = require('../models/resumeClaim.model');
 const defaultVerificationRun = require('../models/verificationRun.model');
 const defaultResumeDraft = require('../models/resumeDraft.model');
 const defaultInterviewReport = require('../../models/interviewReport.model');
+const defaultReportProjectLink = require('../models/reportProjectLink.model');
+const defaultGithubAnalysis = require('../models/githubAnalysis');
+const { aggregateProjectEvidence } = require('../core/evidenceAggregator');
 
 class VerificationError extends Error {
   constructor(message, status = 500, code = 'VERIFICATION_ERROR', retryAfter = null) {
@@ -175,12 +178,16 @@ function createVerificationService({
     const verdict = useEntailment ? entailmentRes.verdict : null;
     const caps = useGuardrails ? entailmentRes.caps || [] : [];
 
-    // 3. Project Evidence (null in M5)
-    let projectEvidenceScore = null;
+    // 3. Project Evidence
+    let projectEvidence = {
+      score: null,
+      evidenceItemIds: [],
+      contradictions: [],
+    };
     if (githubItems && Array.isArray(githubItems) && githubItems.length > 0) {
-      // Reserved for M8 project evidence integration
-      projectEvidenceScore = null;
+      projectEvidence = aggregateProjectEvidence(claim.skills || [], githubItems);
     }
+    const projectEvidenceScore = projectEvidence.score;
 
     // 4. Confidence Score (pure)
     const confidenceScore = calculateConfidence(
@@ -210,9 +217,9 @@ function createVerificationService({
         quoteUngrounded: entailmentRes.quoteUngrounded || false,
       },
       projectEvidence: {
-        score: projectEvidenceScore,
-        evidenceItemIds: [],
-        contradictions: [],
+        score: projectEvidence.score,
+        evidenceItemIds: projectEvidence.evidenceItemIds || [],
+        contradictions: projectEvidence.contradictions || [],
       },
       caps,
       confidenceScore,
@@ -254,6 +261,38 @@ function createVerificationService({
     const report = await InterviewReport.findOne({ _id: reportId, user: userId });
     if (!report) {
       throw new VerificationError('Report not found', 404, 'NOT_FOUND');
+    }
+
+    // 1.5 Validate that each githubAnalysisId is linked to this report and user (else 404)
+    let githubItems = [];
+    if (Array.isArray(githubAnalysisIds) && githubAnalysisIds.length > 0) {
+      const ReportProjectLink = repos.ReportProjectLink || defaultReportProjectLink;
+      const GithubAnalysis = repos.GithubAnalysis || defaultGithubAnalysis;
+
+      for (const aId of githubAnalysisIds) {
+        const link = await ReportProjectLink.findOne({
+          report: reportId,
+          analysisId: aId,
+          user: userId,
+        });
+        if (!link) {
+          throw new VerificationError(
+            `GitHub analysis ${aId} is not linked to this report`,
+            404,
+            'NOT_FOUND'
+          );
+        }
+      }
+
+      const analyses = await GithubAnalysis.find({
+        _id: { $in: githubAnalysisIds },
+      });
+
+      for (const a of analyses) {
+        if (Array.isArray(a.evidenceItems)) {
+          githubItems.push(...a.evidenceItems);
+        }
+      }
     }
 
     // 2. Load latest or specified ResumeDraft
@@ -402,7 +441,7 @@ function createVerificationService({
               claim,
               claimVector: claimVectors[idx] || null,
               chunksWithVectors,
-              githubItems: null,
+              githubItems: githubItems.length > 0 ? githubItems : null,
               signals: {
                 similarity: true,
                 entailment: true,

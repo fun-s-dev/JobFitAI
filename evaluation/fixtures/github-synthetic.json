@@ -1,0 +1,181 @@
+{
+  "id": "fixture:github-synthetic",
+  "repositoryFullName": "synthetic/jobfit-demo",
+  "commitSha": "c0ffee1234567890abcdef1234567890abcdef12",
+  "defaultBranch": "main",
+  "languages": { "JavaScript": 15000 },
+  "dependencies": [
+    { "name": "express", "version": "^4.18.2", "ecosystem": "npm", "skills": ["Express", "REST APIs"] },
+    { "name": "mongoose", "version": "^7.3.0", "ecosystem": "npm", "skills": ["MongoDB", "Mongoose"] },
+    { "name": "jsonwebtoken", "version": "^9.0.0", "ecosystem": "npm", "skills": ["JWT Authentication"] },
+    { "name": "redis", "version": "^4.6.0", "ecosystem": "npm", "skills": ["Redis"] },
+    { "name": "vitest", "version": "^0.34.0", "ecosystem": "npm", "skills": ["Unit Testing"] }
+  ],
+  "evidenceItems": [
+    {
+      "_id": "item_syn_01",
+      "type": "dependency",
+      "skill": "Express",
+      "claimSupport": "npm dependency \"express\" in package.json",
+      "sourcePath": "package.json",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.5,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_02",
+      "type": "dependency",
+      "skill": "REST APIs",
+      "claimSupport": "npm dependency \"express\" in package.json",
+      "sourcePath": "package.json",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.3,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_03",
+      "type": "dependency",
+      "skill": "MongoDB",
+      "claimSupport": "npm dependency \"mongoose\" in package.json",
+      "sourcePath": "package.json",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.5,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_04",
+      "type": "dependency",
+      "skill": "Mongoose",
+      "claimSupport": "npm dependency \"mongoose\" in package.json",
+      "sourcePath": "package.json",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.5,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_05",
+      "type": "dependency",
+      "skill": "JWT Authentication",
+      "claimSupport": "npm dependency \"jsonwebtoken\" in package.json",
+      "sourcePath": "package.json",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.5,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_06",
+      "type": "dependency",
+      "skill": "Redis",
+      "claimSupport": "npm dependency \"redis\" in package.json",
+      "sourcePath": "package.json",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.5,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_06b",
+      "type": "dependency",
+      "skill": "BullMQ",
+      "claimSupport": "npm dependency \"bullmq\" in package.json",
+      "sourcePath": "package.json",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.4,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_06c",
+      "type": "dependency",
+      "skill": "Password Hashing",
+      "claimSupport": "npm dependency \"bcryptjs\" in package.json",
+      "sourcePath": "package.json",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.4,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_07",
+      "type": "source_file",
+      "skill": "REST APIs",
+      "claimSupport": "GET /api/users route in src/routes/users.js",
+      "sourcePath": "src/routes/users.js",
+      "lineStart": 5,
+      "lineEnd": 8,
+      "strength": 0.8,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_08",
+      "type": "source_file",
+      "skill": "Express",
+      "claimSupport": "POST /api/users route in src/routes/users.js",
+      "sourcePath": "src/routes/users.js",
+      "lineStart": 10,
+      "lineEnd": 14,
+      "strength": 0.8,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_09",
+      "type": "source_file",
+      "skill": "MongoDB",
+      "claimSupport": "Mongoose model \"User\" declaration in src/models/user.js",
+      "sourcePath": "src/models/user.js",
+      "lineStart": 4,
+      "lineEnd": 4,
+      "strength": 0.8,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_10",
+      "type": "source_file",
+      "skill": "Mongoose",
+      "claimSupport": "Mongoose Schema definition in src/models/user.js",
+      "sourcePath": "src/models/user.js",
+      "lineStart": 2,
+      "lineEnd": 3,
+      "strength": 0.8,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_11",
+      "type": "source_file",
+      "skill": "JWT Authentication",
+      "claimSupport": "Call to jwt.verify() in src/auth.js",
+      "sourcePath": "src/auth.js",
+      "lineStart": 3,
+      "lineEnd": 5,
+      "strength": 0.8,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_12",
+      "type": "test",
+      "skill": "Unit Testing",
+      "claimSupport": "Found 4 automated test cases in test/users.test.js",
+      "sourcePath": "test/users.test.js",
+      "lineStart": 1,
+      "lineEnd": 12,
+      "strength": 0.8,
+      "contradiction": false
+    },
+    {
+      "_id": "item_syn_13",
+      "type": "readme",
+      "skill": "Kafka",
+      "claimSupport": "Mentioned in README.md but not found in manifest or AST",
+      "sourcePath": "README.md",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.0,
+      "contradiction": true
+    }
+  ]
+}

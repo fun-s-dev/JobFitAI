@@ -26,6 +26,10 @@ router.use('/verification', verificationRouter);
 const jobRouter = require('./job.routes');
 router.use('/jobs', jobRouter);
 
+// GitHub analysis endpoints
+const githubRouter = require('./github.routes');
+router.use('/github', githubRouter);
+
 // v2 Not Found handler for unknown /api/v2 routes
 
 router.use(notFoundHandler);

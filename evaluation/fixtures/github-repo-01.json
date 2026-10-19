@@ -1,0 +1,58 @@
+{
+  "id": "fixture:github-repo-01",
+  "repositoryFullName": "expressjs/basic-auth-connect",
+  "commitSha": "a1b2c3d4e5f678901234567890abcdef12345678",
+  "defaultBranch": "master",
+  "languages": { "JavaScript": 4500 },
+  "dependencies": [
+    { "name": "basic-auth", "version": "~2.0.1", "ecosystem": "npm", "skills": [] },
+    { "name": "mocha", "version": "10.2.0", "ecosystem": "npm", "skills": ["Unit Testing"] },
+    { "name": "supertest", "version": "6.3.3", "ecosystem": "npm", "skills": ["API Testing"] }
+  ],
+  "evidenceItems": [
+    {
+      "_id": "item_repo1_01",
+      "type": "dependency",
+      "skill": "Unit Testing",
+      "claimSupport": "npm dependency \"mocha\" in package.json",
+      "sourcePath": "package.json",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.4,
+      "contradiction": false
+    },
+    {
+      "_id": "item_repo1_02",
+      "type": "dependency",
+      "skill": "API Testing",
+      "claimSupport": "npm dependency \"supertest\" in package.json",
+      "sourcePath": "package.json",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.4,
+      "contradiction": false
+    },
+    {
+      "_id": "item_repo1_03",
+      "type": "test",
+      "skill": "Unit Testing",
+      "claimSupport": "Found 8 automated test cases in test/test.js",
+      "sourcePath": "test/test.js",
+      "lineStart": 1,
+      "lineEnd": 45,
+      "strength": 0.9,
+      "contradiction": false
+    },
+    {
+      "_id": "item_repo1_04",
+      "type": "readme",
+      "skill": "Redis",
+      "claimSupport": "Mentioned in README.md but not found in manifest or AST",
+      "sourcePath": "README.md",
+      "lineStart": null,
+      "lineEnd": null,
+      "strength": 0.0,
+      "contradiction": true
+    }
+  ]
+}

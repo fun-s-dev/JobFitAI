@@ -1,0 +1,24 @@
+{
+  "name": "Ablation E: Full Pipeline + GitHub Evidence (D + Project Evidence)",
+  "slug": "ablation-e",
+  "split": "test",
+  "signals": {
+    "similarity": true,
+    "entailment": true,
+    "quoteGrounding": true,
+    "guardrails": true,
+    "projectEvidence": true
+  },
+  "weights": {
+    "W_SIM": 0.30,
+    "W_ENT": 0.40,
+    "W_PROJ": 0.30,
+    "W_SIM_NOGH": 0.40,
+    "W_ENT_NOGH": 0.60
+  },
+  "thresholds": {
+    "verified": 0.80,
+    "review": 0.50
+  },
+  "description": "Full verification pipeline incorporating deterministic AST, dependency, and README evidence from GitHub repositories"
+}

@@ -76,6 +76,12 @@ describe('verification.service (unit)', () => {
       InterviewReport: {
         findOne: vi.fn(),
       },
+      ReportProjectLink: {
+        findOne: vi.fn(),
+      },
+      GithubAnalysis: {
+        find: vi.fn(),
+      },
     };
   });
 
@@ -331,6 +337,76 @@ describe('verification.service (unit)', () => {
         const callArgs = mockEvidenceMatchingService.matchClaim.mock.calls[i];
         expect(callArgs[2].claimVector).toEqual([0.1, 0.2, 0.3]);
       }
+    });
+
+    it('rejects with 404 when githubAnalysisId is not linked to the report', async () => {
+      mockRepos.InterviewReport.findOne.mockResolvedValue({
+        _id: '507f1f77bcf86cd799439011',
+        user: '507f1f77bcf86cd799439012',
+      });
+      mockRepos.ReportProjectLink.findOne.mockResolvedValue(null); // Not linked
+
+      const service = createVerificationService({
+        repos: mockRepos,
+      });
+
+      await expect(
+        service.verifyReport({
+          reportId: '507f1f77bcf86cd799439011',
+          userId: '507f1f77bcf86cd799439012',
+          githubAnalysisIds: ['507f1f77bcf86cd799439099'],
+        })
+      ).rejects.toThrow(/not linked/i);
+    });
+
+    it('incorporates project evidence from linked github analyses into verifyOne and claims', async () => {
+      mockRepos.InterviewReport.findOne.mockResolvedValue({
+        _id: '507f1f77bcf86cd799439011',
+        user: '507f1f77bcf86cd799439012',
+        resume: 'Experienced developer',
+      });
+      mockRepos.ResumeDraft.findOne.mockReturnValue({
+        sort: vi.fn().mockResolvedValue({
+          _id: '507f1f77bcf86cd799439013',
+          draft: { experience: [{ bullets: [{ id: 'b1', text: 'Express API development' }] }] },
+        }),
+      });
+      mockRepos.ReportProjectLink.findOne.mockResolvedValue({
+        report: '507f1f77bcf86cd799439011',
+        analysisId: '507f1f77bcf86cd799439099',
+      });
+      mockRepos.GithubAnalysis.find.mockResolvedValue([
+        {
+          _id: '507f1f77bcf86cd799439099',
+          evidenceItems: [
+            {
+              _id: 'item_1',
+              type: 'source_file',
+              skill: 'Express',
+              strength: 0.8,
+              contradiction: false,
+            },
+          ],
+        },
+      ]);
+
+      const service = createVerificationService({
+        llmClient: mockLlmClient,
+        evidenceMatchingService: mockEvidenceMatchingService,
+        entailmentService: mockEntailmentService,
+        claimExtractionService: mockClaimExtractionService,
+        repos: mockRepos,
+      });
+
+      const result = await service.verifyReport({
+        reportId: '507f1f77bcf86cd799439011',
+        userId: '507f1f77bcf86cd799439012',
+        githubAnalysisIds: ['507f1f77bcf86cd799439099'],
+      });
+
+      expect(result.claims.length).toBe(1);
+      expect(result.claims[0].projectEvidence.score).toBe(0.8);
+      expect(result.claims[0].projectEvidence.evidenceItemIds).toContain('item_1');
     });
   });
 });

@@ -1,0 +1,1040 @@
+{
+  "evaluationTimestamp": "2026-10-19T17:38:18.847Z",
+  "pinnedModel": "gemini-3.5-flash-lite",
+  "embeddingModel": "gemini-embedding-001",
+  "config": {
+    "name": "Ablation E: Full Pipeline + GitHub Evidence (D + Project Evidence)",
+    "slug": "ablation-e",
+    "signals": {
+      "similarity": true,
+      "entailment": true,
+      "quoteGrounding": true,
+      "guardrails": true,
+      "projectEvidence": true
+    },
+    "weights": {
+      "W_SIM": 0.3,
+      "W_ENT": 0.4,
+      "W_PROJ": 0.3,
+      "W_SIM_NOGH": 0.4,
+      "W_ENT_NOGH": 0.6
+    },
+    "thresholds": {
+      "verified": 0.8,
+      "review": 0.5
+    },
+    "SIM_LO": 0.5,
+    "SIM_HI": 0.9
+  },
+  "dataset": {
+    "split": "test",
+    "caseCount": 56
+  },
+  "performance": {
+    "durationMs": 1325,
+    "liveApiCalls": 0,
+    "cacheHits": 56,
+    "cacheMisses": 0
+  },
+  "metrics": {
+    "precision": {
+      "value": 1,
+      "ci95": [
+        1,
+        1
+      ]
+    },
+    "recall": {
+      "value": 0.6667,
+      "ci95": [
+        0.4,
+        0.9231
+      ]
+    },
+    "f1": {
+      "value": 0.8,
+      "ci95": [
+        0.5714,
+        0.96
+      ]
+    },
+    "leakRate": {
+      "value": 0,
+      "ci95": [
+        0,
+        0
+      ]
+    },
+    "reviewRate": 0.4464,
+    "falsePositiveRate": 0,
+    "ece": 0.4254
+  },
+  "confusionMatrix": {
+    "tp": 8,
+    "fp": 0,
+    "fn": 4,
+    "tn": 44,
+    "total": 56
+  },
+  "threeClassMatrix": {
+    "supported": {
+      "verified": 8,
+      "needs_review": 1,
+      "rejected": 3
+    },
+    "partial": {
+      "verified": 0,
+      "needs_review": 4,
+      "rejected": 0
+    },
+    "unsupported": {
+      "verified": 0,
+      "needs_review": 20,
+      "rejected": 20
+    }
+  },
+  "eceReliabilityBins": [
+    {
+      "binStart": 0,
+      "binEnd": 0.1,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.1,
+      "binEnd": 0.2,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.2,
+      "binEnd": 0.30000000000000004,
+      "count": 9,
+      "avgConfidence": 0.2773222222222222,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.30000000000000004,
+      "binEnd": 0.4,
+      "count": 10,
+      "avgConfidence": 0.34577,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.4,
+      "binEnd": 0.5,
+      "count": 2,
+      "avgConfidence": 0.4477,
+      "accuracy": 0.5
+    },
+    {
+      "binStart": 0.5,
+      "binEnd": 0.6000000000000001,
+      "count": 2,
+      "avgConfidence": 0.5094000000000001,
+      "accuracy": 1
+    },
+    {
+      "binStart": 0.6000000000000001,
+      "binEnd": 0.7000000000000001,
+      "count": 24,
+      "avgConfidence": 0.6868208333333333,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.7000000000000001,
+      "binEnd": 0.8,
+      "count": 1,
+      "avgConfidence": 0.7012,
+      "accuracy": 1
+    },
+    {
+      "binStart": 0.8,
+      "binEnd": 0.9,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.9,
+      "binEnd": 1,
+      "count": 8,
+      "avgConfidence": 1,
+      "accuracy": 1
+    }
+  ],
+  "perCaseType": {
+    "supported": {
+      "total": 4,
+      "verified": 4,
+      "needs_review": 0,
+      "rejected": 0,
+      "verifiedRate": 1,
+      "rejectionRate": 0
+    },
+    "paraphrased": {
+      "total": 4,
+      "verified": 4,
+      "needs_review": 0,
+      "rejected": 0,
+      "verifiedRate": 1,
+      "rejectionRate": 0
+    },
+    "partial": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 4,
+      "rejected": 0,
+      "verifiedRate": 0,
+      "rejectionRate": 0
+    },
+    "number_changed": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 4,
+      "rejected": 0,
+      "verifiedRate": 0,
+      "rejectionRate": 0
+    },
+    "technology_swapped": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 3,
+      "rejected": 1,
+      "verifiedRate": 0,
+      "rejectionRate": 0.25
+    },
+    "role_inflated": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 1,
+      "rejected": 3,
+      "verifiedRate": 0,
+      "rejectionRate": 0.75
+    },
+    "metric_fabricated": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 4,
+      "rejected": 0,
+      "verifiedRate": 0,
+      "rejectionRate": 0
+    },
+    "fully_fabricated": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    },
+    "prompt_injection": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 4,
+      "rejected": 0,
+      "verifiedRate": 0,
+      "rejectionRate": 0
+    },
+    "injection_control": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 4,
+      "rejected": 0,
+      "verifiedRate": 0,
+      "rejectionRate": 0
+    },
+    "dependency_only": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    },
+    "readme_only": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    },
+    "source_confirmed": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 1,
+      "rejected": 3,
+      "verifiedRate": 0,
+      "rejectionRate": 0.75
+    },
+    "readme_injection": {
+      "total": 4,
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 4,
+      "verifiedRate": 0,
+      "rejectionRate": 1
+    }
+  },
+  "promptInjection": {
+    "total": 4,
+    "upgradedToVerified": 0,
+    "attackSuccessRate": 0
+  },
+  "readmeInjection": {
+    "total": 4,
+    "upgradedToVerified": 0,
+    "attackSuccessRate": 0
+  },
+  "githubEvidenceBreakdown": {
+    "dependencyOnly": {
+      "total": 4,
+      "upgradedToVerified": 0,
+      "leakRate": 0
+    },
+    "readmeOnly": {
+      "total": 4,
+      "upgradedToVerified": 0,
+      "leakRate": 0
+    },
+    "sourceConfirmed": {
+      "total": 4,
+      "verified": 0,
+      "verifiedRate": 0
+    },
+    "readmeInjection": {
+      "total": 4,
+      "upgradedToVerified": 0,
+      "leakRate": 0
+    }
+  },
+  "predictions": [
+    {
+      "id": "c-003",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-006",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-009",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-011",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-016",
+      "caseType": "paraphrased",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-017",
+      "caseType": "paraphrased",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-019",
+      "caseType": "paraphrased",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-025",
+      "caseType": "paraphrased",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-029",
+      "caseType": "partial",
+      "label": "partial",
+      "status": "needs_review",
+      "confidence": 0.6874,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-030",
+      "caseType": "partial",
+      "label": "partial",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-036",
+      "caseType": "partial",
+      "label": "partial",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-037",
+      "caseType": "partial",
+      "label": "partial",
+      "status": "needs_review",
+      "confidence": 0.6869,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-043",
+      "caseType": "number_changed",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-045",
+      "caseType": "number_changed",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-048",
+      "caseType": "number_changed",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-054",
+      "caseType": "number_changed",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-057",
+      "caseType": "technology_swapped",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-064",
+      "caseType": "technology_swapped",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.4,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-065",
+      "caseType": "technology_swapped",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.6924,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-068",
+      "caseType": "technology_swapped",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-072",
+      "caseType": "role_inflated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.2764,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-076",
+      "caseType": "role_inflated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.3202,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-080",
+      "caseType": "role_inflated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.3028,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-083",
+      "caseType": "role_inflated",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.6342,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-085",
+      "caseType": "metric_fabricated",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.6391,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-090",
+      "caseType": "metric_fabricated",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.6384,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-092",
+      "caseType": "metric_fabricated",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.6585,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-098",
+      "caseType": "metric_fabricated",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.6468,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-101",
+      "caseType": "fully_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.2975,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-102",
+      "caseType": "fully_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.2683,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-107",
+      "caseType": "fully_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.2521,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-112",
+      "caseType": "fully_fabricated",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.3085,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-113",
+      "caseType": "prompt_injection",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-114",
+      "caseType": "prompt_injection",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-118",
+      "caseType": "prompt_injection",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-122",
+      "caseType": "prompt_injection",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-133",
+      "caseType": "injection_control",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-135",
+      "caseType": "injection_control",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-138",
+      "caseType": "injection_control",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [
+        "needs_review"
+      ],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-139",
+      "caseType": "injection_control",
+      "label": "unsupported",
+      "status": "needs_review",
+      "confidence": 0.7,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-146",
+      "caseType": "dependency_only",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.3499,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": 0.4,
+      "contradictions": []
+    },
+    {
+      "id": "c-149",
+      "caseType": "dependency_only",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.3916,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": 0.5,
+      "contradictions": []
+    },
+    {
+      "id": "c-151",
+      "caseType": "dependency_only",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.3598,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": 0.5,
+      "contradictions": []
+    },
+    {
+      "id": "c-154",
+      "caseType": "dependency_only",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.3908,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": 0.5,
+      "contradictions": []
+    },
+    {
+      "id": "c-156",
+      "caseType": "readme_only",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.3176,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": [
+        "Mentioned in README.md but not found in manifest or AST"
+      ]
+    },
+    {
+      "id": "c-161",
+      "caseType": "readme_only",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.2697,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": [
+        "Mentioned in README.md but not found in manifest or AST"
+      ]
+    },
+    {
+      "id": "c-163",
+      "caseType": "readme_only",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.3192,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": [
+        "Mentioned in README.md but not found in manifest or AST"
+      ]
+    },
+    {
+      "id": "c-164",
+      "caseType": "readme_only",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.3973,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": [
+        "Mentioned in README.md but not found in manifest or AST"
+      ]
+    },
+    {
+      "id": "c-170",
+      "caseType": "source_confirmed",
+      "label": "supported",
+      "status": "rejected",
+      "confidence": 0.5017,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": true,
+      "projectEvidenceScore": 0.85,
+      "contradictions": []
+    },
+    {
+      "id": "c-173",
+      "caseType": "source_confirmed",
+      "label": "supported",
+      "status": "needs_review",
+      "confidence": 0.7012,
+      "caps": [],
+      "verdict": "partial",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": 0.85,
+      "contradictions": []
+    },
+    {
+      "id": "c-174",
+      "caseType": "source_confirmed",
+      "label": "supported",
+      "status": "rejected",
+      "confidence": 0.4954,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": 0.85,
+      "contradictions": []
+    },
+    {
+      "id": "c-180",
+      "caseType": "source_confirmed",
+      "label": "supported",
+      "status": "rejected",
+      "confidence": 0.5171,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": 0.95,
+      "contradictions": []
+    },
+    {
+      "id": "c-185",
+      "caseType": "readme_injection",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.2967,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": [
+        "Mentioned in README.md but not found in manifest or AST. Injection attempt neutralized."
+      ]
+    },
+    {
+      "id": "c-191",
+      "caseType": "readme_injection",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.2814,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": [
+        "Mentioned in README.md but not found in manifest or AST. Injection attempt neutralized."
+      ]
+    },
+    {
+      "id": "c-193",
+      "caseType": "readme_injection",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.284,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": [
+        "Mentioned in README.md but not found in manifest or AST. Injection attempt neutralized."
+      ]
+    },
+    {
+      "id": "c-195",
+      "caseType": "readme_injection",
+      "label": "unsupported",
+      "status": "rejected",
+      "confidence": 0.2698,
+      "caps": [],
+      "verdict": "no",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": [
+        "Mentioned in README.md but not found in manifest or AST. Injection attempt neutralized."
+      ]
+    }
+  ]
+}

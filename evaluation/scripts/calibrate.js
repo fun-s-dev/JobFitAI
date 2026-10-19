@@ -24,11 +24,12 @@ function sigmoid(z) {
   return 1.0 / (1.0 + Math.exp(-Math.max(-15, Math.min(15, z))));
 }
 
-// Fit logistic regression: p = sigmoid(w0 + w1 * sim + w2 * ent)
-function fitLogisticRegression(trainCases, iterations = 800, lr = 0.1, lambda = 0.001) {
+// Fit 3-feature logistic regression: p = sigmoid(w0 + w1 * sim + w2 * ent + w3 * proj)
+function fitThreeFeatureLogisticRegression(trainCases, iterations = 800, lr = 0.1, lambda = 0.001) {
   let w0 = 0.0;
   let w1 = 1.0;
   let w2 = 1.0;
+  let w3 = 1.0;
 
   const valid = trainCases.filter((c) => c.sim !== null && c.ent !== null);
   const n = valid.length;
@@ -37,33 +38,48 @@ function fitLogisticRegression(trainCases, iterations = 800, lr = 0.1, lambda = 
     let grad0 = 0;
     let grad1 = 0;
     let grad2 = 0;
+    let grad3 = 0;
 
     for (const item of valid) {
-      const z = w0 + w1 * item.sim + w2 * item.ent;
+      const proj = item.proj !== null && item.proj !== undefined ? item.proj : 0.0;
+      const z = w0 + w1 * item.sim + w2 * item.ent + w3 * proj;
       const pred = sigmoid(z);
       const err = pred - item.y;
 
       grad0 += err;
       grad1 += err * item.sim;
       grad2 += err * item.ent;
+      grad3 += err * proj;
     }
 
     w0 -= (lr * grad0) / n;
     w1 -= (lr * grad1) / n + lr * lambda * w1;
     w2 -= (lr * grad2) / n + lr * lambda * w2;
+    w3 -= (lr * grad3) / n + lr * lambda * w3;
   }
 
-  const sumWeights = Math.abs(w1) + Math.abs(w2);
-  const normW1 = sumWeights > 0 ? Math.abs(w1) / sumWeights : 0.40;
-  const normW2 = sumWeights > 0 ? Math.abs(w2) / sumWeights : 0.60;
+  const sumWeights3 = Math.abs(w1) + Math.abs(w2) + Math.abs(w3);
+  const normW1_3 = sumWeights3 > 0 ? Math.abs(w1) / sumWeights3 : 0.30;
+  const normW2_3 = sumWeights3 > 0 ? Math.abs(w2) / sumWeights3 : 0.40;
+  const normW3_3 = sumWeights3 > 0 ? Math.abs(w3) / sumWeights3 : 0.30;
+
+  const sumWeights2 = Math.abs(w1) + Math.abs(w2);
+  const normW1_2 = sumWeights2 > 0 ? Math.abs(w1) / sumWeights2 : 0.40;
+  const normW2_2 = sumWeights2 > 0 ? Math.abs(w2) / sumWeights2 : 0.60;
 
   return {
     w0: Number(w0.toFixed(4)),
     w1: Number(w1.toFixed(4)),
     w2: Number(w2.toFixed(4)),
-    normalizedWeights: {
-      W_SIM_NOGH: Number(normW1.toFixed(4)),
-      W_ENT_NOGH: Number(normW2.toFixed(4)),
+    w3: Number(w3.toFixed(4)),
+    normalizedWeights3: {
+      W_SIM: Number(normW1_3.toFixed(4)),
+      W_ENT: Number(normW2_3.toFixed(4)),
+      W_PROJ: Number(normW3_3.toFixed(4)),
+    },
+    normalizedWeightsNoGh: {
+      W_SIM_NOGH: Number(normW1_2.toFixed(4)),
+      W_ENT_NOGH: Number(normW2_2.toFixed(4)),
     },
   };
 }
@@ -129,13 +145,19 @@ async function runCalibration() {
   // Load and prepare fixtures
   const fixturesDir = path.resolve(__dirname, '../fixtures');
   const fixtureChunks = {};
+  const githubFixtures = {};
   for (const f of fs.readdirSync(fixturesDir)) {
     if (f.endsWith('.json')) {
       const fixtureData = JSON.parse(fs.readFileSync(path.join(fixturesDir, f), 'utf8'));
-      const normalized = normalizeText(fixtureData.rawText);
-      const rawChunks = chunkText(normalized, { source: 'resume', maxChars: appConfig.MAX_CHUNK_CHARS || 500 });
-      const prepared = await evidenceMatchingService.prepareEvidenceChunks(rawChunks);
-      fixtureChunks[fixtureData.id] = prepared.chunksWithVectors;
+      if (fixtureData.rawText) {
+        const normalized = normalizeText(fixtureData.rawText);
+        const rawChunks = chunkText(normalized, { source: 'resume', maxChars: appConfig.MAX_CHUNK_CHARS || 500 });
+        const prepared = await evidenceMatchingService.prepareEvidenceChunks(rawChunks);
+        fixtureChunks[fixtureData.id] = prepared.chunksWithVectors;
+      }
+      if (fixtureData.evidenceItems) {
+        githubFixtures[fixtureData.id] = fixtureData.evidenceItems;
+      }
     }
   }
 
@@ -153,19 +175,23 @@ async function runCalibration() {
   for (let i = 0; i < trainCases.length; i++) {
     const item = trainCases[i];
     const chunksWithVectors = fixtureChunks[item.evidence.resume] || [];
+    const githubItems = item.evidence?.github ? githubFixtures[item.evidence.github] || null : null;
 
     const res = await verificationService.verifyOne({
       claim: {
         bulletId: item.id,
         claimText: item.claim,
         claimType: item.caseType === 'metric_fabricated' ? 'metric' : 'technology',
+        skills: item.evidence?.skills || item.skills || [],
       },
       chunksWithVectors,
+      githubItems,
       signals: {
         similarity: true,
         entailment: true,
         quoteGrounding: true,
         guardrails: true,
+        projectEvidence: true,
       },
       context: { purpose: 'calibration_train' },
     });
@@ -174,6 +200,7 @@ async function runCalibration() {
     const rawCosine = topMatch ? topMatch.cosine : 0;
     const simScore = topMatch ? topMatch.similarityScore : 0;
     const entScore = res.entailment ? res.entailment.score : 0;
+    const projScore = res.projectEvidence ? res.projectEvidence.score : null;
 
     if (item.label === 'supported') {
       supportedRawCosines.push(rawCosine);
@@ -188,6 +215,7 @@ async function runCalibration() {
       y,
       sim: simScore,
       ent: entScore,
+      proj: projScore,
       rawCosine,
       confidence: res.confidenceScore,
       status: res.status,
@@ -218,11 +246,12 @@ async function runCalibration() {
   console.log(`Calibrated SIM thresholds: SIM_LO = ${recommendedSimLo}, SIM_HI = ${recommendedSimHi} (Default was SIM_LO=0.5, SIM_HI=0.9)`);
 
   // 2. Fit Logistic Regression on TRAIN
-  console.log('\nFitting logistic regression on TRAIN split...');
-  const lrResult = fitLogisticRegression(trainSamples);
-  console.log(`Learned coefficients: intercept w0 = ${lrResult.w0}, w1 (sim) = ${lrResult.w1}, w2 (ent) = ${lrResult.w2}`);
-  console.log(`Learned normalized non-GitHub weights: W_SIM_NOGH = ${lrResult.normalizedWeights.W_SIM_NOGH}, W_ENT_NOGH = ${lrResult.normalizedWeights.W_ENT_NOGH}`);
-  console.log(`Default configuration weights:        W_SIM_NOGH = 0.40, W_ENT_NOGH = 0.60`);
+  console.log('\nFitting 3-feature logistic regression on TRAIN split...');
+  const lrResult = fitThreeFeatureLogisticRegression(trainSamples);
+  console.log(`Learned coefficients: intercept w0 = ${lrResult.w0}, w1 (sim) = ${lrResult.w1}, w2 (ent) = ${lrResult.w2}, w3 (proj) = ${lrResult.w3}`);
+  console.log(`Learned normalized 3-feature weights: W_SIM = ${lrResult.normalizedWeights3.W_SIM}, W_ENT = ${lrResult.normalizedWeights3.W_ENT}, W_PROJ = ${lrResult.normalizedWeights3.W_PROJ}`);
+  console.log(`Learned normalized non-GitHub weights: W_SIM_NOGH = ${lrResult.normalizedWeightsNoGh.W_SIM_NOGH}, W_ENT_NOGH = ${lrResult.normalizedWeightsNoGh.W_ENT_NOGH}`);
+  console.log(`Default configuration weights:        W_SIM = 0.30, W_ENT = 0.40, W_PROJ = 0.30 | W_SIM_NOGH = 0.40, W_ENT_NOGH = 0.60`);
 
   // 3. Threshold Sweep on TRAIN for precision >= 0.95
   console.log('\nRunning threshold sweep on TRAIN split...');
@@ -247,6 +276,7 @@ async function runCalibration() {
 
   for (const item of testCases) {
     const chunksWithVectors = fixtureChunks[item.evidence.resume] || [];
+    const githubItems = item.evidence?.github ? githubFixtures[item.evidence.github] || null : null;
 
     // Run with default config
     const resDef = await verificationService.verifyOne({
@@ -254,9 +284,11 @@ async function runCalibration() {
         bulletId: item.id,
         claimText: item.claim,
         claimType: item.caseType === 'metric_fabricated' ? 'metric' : 'technology',
+        skills: item.evidence?.skills || item.skills || [],
       },
       chunksWithVectors,
-      signals: { similarity: true, entailment: true, quoteGrounding: true, guardrails: true },
+      githubItems,
+      signals: { similarity: true, entailment: true, quoteGrounding: true, guardrails: true, projectEvidence: true },
       context: { purpose: 'eval_test_default' },
     });
     testEvaluationsDefault.push({
@@ -273,15 +305,17 @@ async function runCalibration() {
         bulletId: item.id,
         claimText: item.claim,
         claimType: item.caseType === 'metric_fabricated' ? 'metric' : 'technology',
+        skills: item.evidence?.skills || item.skills || [],
       },
       chunksWithVectors,
-      signals: { similarity: true, entailment: true, quoteGrounding: true, guardrails: true },
+      githubItems,
+      signals: { similarity: true, entailment: true, quoteGrounding: true, guardrails: true, projectEvidence: true },
       weights: {
-        W_SIM: 0.30,
-        W_ENT: 0.40,
-        W_PROJ: 0.30,
-        W_SIM_NOGH: lrResult.normalizedWeights.W_SIM_NOGH,
-        W_ENT_NOGH: lrResult.normalizedWeights.W_ENT_NOGH,
+        W_SIM: lrResult.normalizedWeights3.W_SIM,
+        W_ENT: lrResult.normalizedWeights3.W_ENT,
+        W_PROJ: lrResult.normalizedWeights3.W_PROJ,
+        W_SIM_NOGH: lrResult.normalizedWeightsNoGh.W_SIM_NOGH,
+        W_ENT_NOGH: lrResult.normalizedWeightsNoGh.W_ENT_NOGH,
       },
       thresholds: {
         verified: optimalTrainPoint.threshold,
@@ -304,8 +338,8 @@ async function runCalibration() {
   const learnedECE = calculateECE(testEvaluationsLearned);
 
   console.log('\n--- HELD-OUT TEST SPLIT COMPARISON ---');
-  console.log(`Default (W=0.40/0.60, T=0.80): Precision=${(defMetrics.precision * 100).toFixed(1)}%, Recall=${(defMetrics.recall * 100).toFixed(1)}%, F1=${defMetrics.f1.toFixed(4)}, Leak=${(defMetrics.leakRate * 100).toFixed(1)}%, ECE=${defECE.ece.toFixed(4)}`);
-  console.log(`Learned (W=${lrResult.normalizedWeights.W_SIM_NOGH}/${lrResult.normalizedWeights.W_ENT_NOGH}, T=${optimalTrainPoint.threshold.toFixed(2)}): Precision=${(learnedMetrics.precision * 100).toFixed(1)}%, Recall=${(learnedMetrics.recall * 100).toFixed(1)}%, F1=${learnedMetrics.f1.toFixed(4)}, Leak=${(learnedMetrics.leakRate * 100).toFixed(1)}%, ECE=${learnedECE.ece.toFixed(4)}`);
+  console.log(`Default (W=0.30/0.40/0.30, T=0.80): Precision=${(defMetrics.precision * 100).toFixed(1)}%, Recall=${(defMetrics.recall * 100).toFixed(1)}%, F1=${defMetrics.f1.toFixed(4)}, Leak=${(defMetrics.leakRate * 100).toFixed(1)}%, ECE=${defECE.ece.toFixed(4)}`);
+  console.log(`Learned (W=${lrResult.normalizedWeights3.W_SIM}/${lrResult.normalizedWeights3.W_ENT}/${lrResult.normalizedWeights3.W_PROJ}, T=${optimalTrainPoint.threshold.toFixed(2)}): Precision=${(learnedMetrics.precision * 100).toFixed(1)}%, Recall=${(learnedMetrics.recall * 100).toFixed(1)}%, F1=${learnedMetrics.f1.toFixed(4)}, Leak=${(learnedMetrics.leakRate * 100).toFixed(1)}%, ECE=${learnedECE.ece.toFixed(4)}`);
 
   const calibrationReport = {
     calibratedAt: new Date().toISOString(),

@@ -7,7 +7,7 @@ const InterviewReport = require('../../models/interviewReport.model');
  */
 async function loadOwnedReport(req, res, next) {
   const requestId = req.id || req.headers['x-request-id'] || 'unknown';
-  const reportId = req.params.reportId || req.params.id;
+  const reportId = req.params.reportId || req.params.id || (req.body && req.body.reportId);
 
   if (!reportId || !mongoose.isValidObjectId(reportId)) {
     return res.status(404).json({

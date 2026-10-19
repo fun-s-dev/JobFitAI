@@ -154,6 +154,8 @@ export default function ClaimRow({
             entailment={claim.entailment}
             resumeEvidence={claim.resumeEvidence}
             caps={claim.caps}
+            projectEvidence={claim.projectEvidence}
+            projectItems={claim.projectItems || []}
           />
         </div>
       )}
