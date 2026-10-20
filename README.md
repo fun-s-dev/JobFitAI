@@ -13,7 +13,7 @@ Generative AI models excel at phrasing resume bullet points to align with job de
 1. It decomposes generated bullets into **atomic factual claims**.
 2. It retrieves source evidence from original resumes and **static AST analysis of connected GitHub repositories**.
 3. It validates each claim using multi-stage natural language inference (NLI), quote grounding, and cosine embedding similarity.
-4. It computes a calibrated **confidence score** and strictly excludes unverified or rejected claims from the exported ATS resume.
+4. It computes a composite **confidence score** using hand-set production thresholds (the offline calibrated logistic regression model D-cal was evaluated and rejected) and strictly excludes unverified or rejected claims from the exported ATS resume.
 
 ---
 
@@ -230,7 +230,7 @@ node ../evaluation/scripts/eval-runner.js --config ../evaluation/configs/ablatio
 - **No Independent Human Spot-Check**: Labels were generated and verified using programmatic checks and AI second-pass spot checks; they have not undergone double-blind human annotation.
 - **TEST Split Modified After Inspection**: During Milestone 6 evaluation, the TEST split was inspected and adjusted to resolve injection control alignment. Consequently, reported TEST metrics must be treated as development benchmark results rather than an uncontaminated held-out test split.
 - **Ceiling Effect**: Due to synthetic test case clarity, Ablations B, C, and D achieve identical 0.0% leak rates and identical precision on the TEST split, creating a ceiling effect where subtle differences between intermediate defenses are indistinguishable.
-- **Syntactic AST Scope**: Static AST analysis identifies declared imports, exports, functions, and method calls in JavaScript and Python. It does not evaluate dynamic runtime behaviors, compiled binaries, or containerized execution.
+- **Syntactic AST Scope**: Static AST analysis identifies declared imports, exports, functions, and method calls in JavaScript (via Acorn). It does not evaluate dynamic runtime behaviors, compiled binaries, or containerized execution.
 - **Quantitative Metrics Verification**: Static code inspection cannot verify ungrounded percentage metrics (e.g., "improved latency by 45%") without production runtime APM logs.
 - **Free-Tier Rate Limits**: Pinned to Google Gemini Flash Lite (15 RPM / 500 RPD) to guarantee reproducible runs within free-tier quotas.
 
@@ -246,10 +246,14 @@ Detailed benchmark evaluation reports produced by the offline evaluation harness
 
 | Pipeline Configuration | Precision | Recall | F1 Score | Leak Rate | ECE | Report |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Ablation A** (Similarity only) | 68.2% | 100.0% | 0.8108 | 31.8% | 0.3204 | [ablation-a-report.json](evaluation/reports/ablation-a-report.json) |
-| **Ablation B** (+ Entailment) | 100.0% | 83.33% | 0.9091 | 0.0% | 0.3842 | [ablation-b-report.json](evaluation/reports/ablation-b-report.json) |
-| **Ablation C** (+ Prompt Injection Defense) | 100.0% | 83.33% | 0.9091 | 0.0% | 0.3842 | [ablation-c-report.json](evaluation/reports/ablation-c-report.json) |
-| **Ablation D** (+ Quote Grounding & Guardrails) | 100.0% | 66.67% | 0.8000 | 0.0% | 0.4254 | [ablation-d-report.json](evaluation/reports/ablation-d-report.json) |
-| **Ablation E** (+ GitHub AST & Project Evidence) | **100.0%** | **66.67%** | **0.8000** | **0.0%** | **0.4254** | [ablation-e-report.json](evaluation/reports/ablation-e-report.json) |
+| **Ablation A** (Similarity only) | 27.5% | 91.7% | 0.4231 | 62.5% | 0.6724 | [ablation-a-report.json](evaluation/reports/ablation-a-report.json) |
+| **Ablation B** (+ Entailment) | 100.0% | 66.7% | 0.8000 | 0.0%* | 0.2321 | [ablation-b-report.json](evaluation/reports/ablation-b-report.json) |
+| **Ablation C** (Similarity + Entailment, no injection defense) | 100.0% | 66.7% | 0.8000 | 0.0%* | 0.3654 | [ablation-c-report.json](evaluation/reports/ablation-c-report.json) |
+| **Ablation D** (+ Quote Grounding & Guardrails) | 100.0% | 66.7% | 0.8000 | 0.0%* | 0.3600 | [ablation-d-report.json](evaluation/reports/ablation-d-report.json) |
+| **Ablation E** (+ GitHub AST & Project Evidence) | **100.0%** | **66.7%** | **0.8000** | **0.0%*** | **0.4254** | [ablation-e-report.json](evaluation/reports/ablation-e-report.json) |
 
-*All reported numbers are calculated by the evaluation harness with 95% bootstrap confidence intervals across 1,000 resamples on synthetic cases. See [`evaluation/reports/`](evaluation/reports/) for per-case confusion matrices and calibration bin details.*
+*\*Zero leaks observed on 44 synthetic non-supported test cases (0.0% empirical leak rate; Wilson 95% score interval upper bound: 8.03%, Rule of Three: 6.82%). Across 5-fold cross-validation ($n=140$, 112 non-supported cases), zero leaks were observed (Wilson 95% upper bound: 3.32%, Rule of Three on 98 unsupported claims: 3.06%).*
+
+*Adversarial injection sample size ($n$): On held-out TEST ($n=56$), 4 prompt injection cases (`prompt_injection`) and 4 README injection cases (`readme_injection`) were tested ($n=8$ adversarial cases total; $n=4$ resume prompt injections). Zero leaks were observed (0/4 resume prompt injections; Wilson 95% score interval upper bound: 48.99%, Rule of Three: 75.0%). Across the entire 196-case benchmark, 14 prompt injections and 14 README injections were evaluated ($n=28$ total adversarial cases), with zero leaks observed (0/14 resume prompt injections, Wilson 95% upper bound: 20.91%, Rule of Three: 21.43%; 0/28 combined injections, Wilson 95% upper bound: 11.35%, Rule of Three: 10.71%).*
+
+*All reported numbers are calculated by the evaluation harness from raw predictions and verified against the report JSON artifacts. See [`docs/results-source-of-truth.md`](docs/results-source-of-truth.md) for full per-ablation confusion matrices, cross-validation metrics, and complete discrepancy analysis.*
