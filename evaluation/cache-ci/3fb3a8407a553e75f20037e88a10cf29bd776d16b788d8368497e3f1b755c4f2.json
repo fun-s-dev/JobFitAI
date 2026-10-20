@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Backend engineer with 6 years of experience designing scalable microservices... and low-latency database architectures using Node.js, Redis, and MongoDB",
+  "missingElements": [
+    "data models and schema definitions using Mongoose"
+  ],
+  "verdict": "partial"
+}

@@ -43,13 +43,20 @@ const envSchema = z
     RATE_LIMIT_GITHUB_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
     RATE_LIMIT_GITHUB_MAX: z.coerce.number().int().positive().default(10),
     GITHUB_TOKEN: z.string().optional(),
+    FRONTEND_URL: z.string().default('http://localhost:5173'),
+    TRUST_PROXY_HOPS: z.coerce.number().int().nonnegative().default(1),
+    REGISTRATION_OPEN: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(true),
+    INVITE_CODE: z.string().optional(),
+    USER_DAILY_VERIFICATIONS: z.coerce.number().int().positive().default(3),
+    LLM_DAILY_BUDGET: z.coerce.number().int().positive().default(400),
+    EMBEDDING_DAILY_BUDGET: z.coerce.number().int().positive().default(800),
     W_SIM: z.coerce.number().min(0).max(1).default(0.30),
     W_ENT: z.coerce.number().min(0).max(1).default(0.40),
     W_PROJ: z.coerce.number().min(0).max(1).default(0.30),
     W_SIM_NOGH: z.coerce.number().min(0).max(1).default(0.40),
     W_ENT_NOGH: z.coerce.number().min(0).max(1).default(0.60),
     PUPPETEER_NO_SANDBOX: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(false),
-    PDF_RENDERING_ENABLED: z.preprocess((val) => val === undefined ? true : val === 'true' || val === true, z.boolean()).default(true),
+    PDF_RENDERING_ENABLED: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(true),
     ENTAILMENT_THINKING_LEVEL: z.enum(['LOW', 'MEDIUM', 'HIGH', 'OFF']).default('LOW'),
     ENTAILMENT_SCORE_YES: z.coerce.number().min(0).max(1).default(1.0),
     ENTAILMENT_SCORE_PARTIAL: z.coerce.number().min(0).max(1).default(0.5),
@@ -92,7 +99,19 @@ const envSchema = z
  * Throws ConfigError on validation failure. Never calls process.exit.
  */
 function loadConfig(envObject = {}) {
-  const result = envSchema.safeParse(envObject);
+  const isProd = envObject.NODE_ENV === 'production';
+  const preparedEnv = {
+    ...envObject,
+    PDF_RENDERING_ENABLED:
+      envObject.PDF_RENDERING_ENABLED !== undefined
+        ? envObject.PDF_RENDERING_ENABLED
+        : !isProd,
+    REGISTRATION_OPEN:
+      envObject.REGISTRATION_OPEN !== undefined
+        ? envObject.REGISTRATION_OPEN
+        : !isProd,
+  };
+  const result = envSchema.safeParse(preparedEnv);
   if (!result.success) {
     throw new ConfigError(result.error.issues);
   }

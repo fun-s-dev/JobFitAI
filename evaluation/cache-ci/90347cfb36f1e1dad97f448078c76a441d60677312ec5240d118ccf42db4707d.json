@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Directed incident management for p0 site outages, reducing mean time to recovery (MTTR) by 48% across the engineering organization.",
+  "missingElements": [
+    "reducing MTTR by 92% (evidence states 48%)"
+  ],
+  "verdict": "partial"
+}

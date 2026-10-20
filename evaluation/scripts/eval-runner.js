@@ -28,6 +28,7 @@ function parseArgs() {
   let configPath = null;
   let splitOverride = null;
   let limit = null;
+  let cacheDirOverride = null;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--config' && i + 1 < args.length) {
@@ -42,6 +43,10 @@ function parseArgs() {
       limit = parseInt(args[++i], 10);
     } else if (args[i].startsWith('--limit=')) {
       limit = parseInt(args[i].slice('--limit='.length), 10);
+    } else if (args[i] === '--cache-dir' && i + 1 < args.length) {
+      cacheDirOverride = args[++i];
+    } else if (args[i].startsWith('--cache-dir=')) {
+      cacheDirOverride = args[i].slice('--cache-dir='.length);
     } else if (!configPath && (args[i].endsWith('.json') || args[i].includes('config'))) {
       configPath = args[i];
     }
@@ -52,7 +57,7 @@ function parseArgs() {
     process.exit(1);
   }
 
-  return { configPath, splitOverride, limit };
+  return { configPath, splitOverride, limit, cacheDirOverride };
 }
 
 function resolveFilePath(inputPath) {
@@ -110,7 +115,7 @@ function createCachedLlmClient(rawLlmClient, cacheDir, statsCollector) {
 }
 
 async function runEvaluation() {
-  const { configPath, splitOverride, limit } = parseArgs();
+  const { configPath, splitOverride, limit, cacheDirOverride } = parseArgs();
   const resolvedConfigPath = resolveFilePath(configPath);
 
   if (!fs.existsSync(resolvedConfigPath)) {
@@ -141,7 +146,13 @@ async function runEvaluation() {
     totalLiveCallMs: 0,
   };
 
-  const cacheDir = path.resolve(__dirname, '../cache');
+  const cacheDir = cacheDirOverride
+    ? resolveFilePath(cacheDirOverride)
+    : (config.cacheDir
+      ? (path.isAbsolute(config.cacheDir) ? config.cacheDir : path.resolve(path.dirname(resolvedConfigPath), config.cacheDir))
+      : (process.env.EVAL_CACHE_DIR
+        ? resolveFilePath(process.env.EVAL_CACHE_DIR)
+        : path.resolve(__dirname, '../cache')));
   const reportsDir = path.resolve(__dirname, '../reports');
   if (!fs.existsSync(reportsDir)) {
     fs.mkdirSync(reportsDir, { recursive: true });

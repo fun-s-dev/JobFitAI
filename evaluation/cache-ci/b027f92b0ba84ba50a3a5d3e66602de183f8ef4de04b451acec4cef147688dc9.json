@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Engineered distributed batch data extraction and transformation pipelines using Apache Spark and Python processing 4 Terabytes daily.",
+  "missingElements": [
+    "50 Terabytes daily"
+  ],
+  "verdict": "partial"
+}

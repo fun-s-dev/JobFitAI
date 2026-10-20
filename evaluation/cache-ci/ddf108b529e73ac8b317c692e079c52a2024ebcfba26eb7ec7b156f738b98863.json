@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Built real-time change-data-capture (CDC) pipelines streaming transaction events from MySQL into Snowflake with Debezium.",
+  "missingElements": [
+    "preventing 10,000 lost customer orders per trading day"
+  ],
+  "verdict": "partial"
+}

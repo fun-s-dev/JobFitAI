@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend CI (Lint, Tests, Eval Smoke)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: Backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run oxlint
+        run: npx oxlint src/v2 test/v2
+
+      - name: Run automated test suite (in-memory MongoDB & ReplicaSet)
+        run: npm test
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci_github_actions_dummy_jwt_secret_with_at_least_32_characters
+          GOOGLE_GENAI_API_KEY: dummy_genai_key_for_offline_ci_tests
+
+      - name: Run Eval smoke check (offline replay cache)
+        run: node ../evaluation/scripts/eval-runner.js --config ../evaluation/configs/ablation-d-ci.json --limit 5
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci_github_actions_dummy_jwt_secret_with_at_least_32_characters
+          GOOGLE_GENAI_API_KEY: dummy_genai_key_for_offline_ci_tests
+          RECORD_LLM_CACHE: "false"
+
+  frontend:
+    name: Frontend CI (Lint, Test, Build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: Frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run component & unit tests
+        run: npm test
+
+      - name: Build production bundle
+        run: npm run build
+
+  docker-build:
+    name: Backend Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Backend Docker image (no Chromium)
+        run: docker build ./Backend

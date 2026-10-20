@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "",
+  "missingElements": [
+    "Trained 70B parameter multilingual transformer models from scratch on 2,048 TPU v4 pods"
+  ],
+  "verdict": "no"
+}

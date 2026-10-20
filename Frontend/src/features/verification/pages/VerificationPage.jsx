@@ -222,7 +222,7 @@ export default function VerificationPage() {
               <polyline points="12 6 12 12 16 14" />
             </svg>
             <span>
-              Server is waking up... Please wait a few seconds while instances initialize.
+              Server is waking up (free hosting, up to a minute)... Please wait while instances initialize.
             </span>
           </div>
         )}

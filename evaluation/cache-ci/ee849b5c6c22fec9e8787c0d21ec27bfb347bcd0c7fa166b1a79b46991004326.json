@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Built REST endpoints to create, read, update, and delete tasks",
+  "missingElements": [
+    "handling 50,000 daily active users"
+  ],
+  "verdict": "partial"
+}

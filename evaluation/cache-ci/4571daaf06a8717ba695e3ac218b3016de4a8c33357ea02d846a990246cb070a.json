@@ -1,0 +1,8 @@
+{
+  "evidenceQuote": "",
+  "missingElements": [
+    "Orchestrated Apache Kafka message brokers",
+    "handling 50k messages per second"
+  ],
+  "verdict": "no"
+}

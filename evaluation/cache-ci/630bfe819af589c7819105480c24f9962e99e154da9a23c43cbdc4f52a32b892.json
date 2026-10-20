@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "",
+  "missingElements": [
+    "Developed formal verification proofs in Coq ensuring kernel safety properties"
+  ],
+  "verdict": "no"
+}

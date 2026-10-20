@@ -1,0 +1,8 @@
+{
+  "evidenceQuote": "Automated CI/CD deployment pipelines using GitHub Actions",
+  "missingElements": [
+    "Jenkins",
+    "CircleCI"
+  ],
+  "verdict": "partial"
+}

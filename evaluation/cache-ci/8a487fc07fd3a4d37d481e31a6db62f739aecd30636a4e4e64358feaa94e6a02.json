@@ -1,0 +1,5 @@
+{
+  "evidenceQuote": "Reduced model inference serving latency from 240ms to 38ms by optimizing ONNX runtime models",
+  "missingElements": [],
+  "verdict": "yes"
+}

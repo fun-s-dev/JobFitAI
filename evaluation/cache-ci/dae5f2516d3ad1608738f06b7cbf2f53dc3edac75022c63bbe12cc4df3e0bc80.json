@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Spearheaded migration from monolithic REST API to event-driven microservices using Apache Kafka and Docker.",
+  "missingElements": [
+    "driving 400% increase in candidate conversion rate"
+  ],
+  "verdict": "partial"
+}

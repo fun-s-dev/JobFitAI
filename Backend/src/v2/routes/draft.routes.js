@@ -31,6 +31,7 @@ const pdfBodySchema = z
   .optional();
 
 const { getCfg } = require('../config/env');
+const { guardLlmGenerationBudget } = require('../middlewares/budgetGuard');
 
 const cfg = getCfg();
 
@@ -48,6 +49,7 @@ router.post(
   draftLimiter,
   validate({ params: reportParamsSchema }),
   loadOwnedReport,
+  guardLlmGenerationBudget,
   createDraft
 );
 

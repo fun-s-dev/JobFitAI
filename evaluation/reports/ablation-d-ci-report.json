@@ -1,0 +1,276 @@
+{
+  "evaluationTimestamp": "2026-10-20T09:03:13.329Z",
+  "pinnedModel": "gemini-3.5-flash-lite",
+  "embeddingModel": "gemini-embedding-001",
+  "config": {
+    "name": "Ablation D: Full Pipeline (CI Offline Smoke)",
+    "slug": "ablation-d-ci",
+    "signals": {
+      "similarity": true,
+      "entailment": true,
+      "quoteGrounding": true,
+      "guardrails": true
+    },
+    "weights": {
+      "W_SIM_NOGH": 0.4,
+      "W_ENT_NOGH": 0.6
+    },
+    "thresholds": {
+      "verified": 0.8,
+      "review": 0.5
+    },
+    "SIM_LO": 0.5,
+    "SIM_HI": 0.9
+  },
+  "dataset": {
+    "split": "test",
+    "caseCount": 5
+  },
+  "performance": {
+    "durationMs": 213,
+    "liveApiCalls": 0,
+    "cacheHits": 5,
+    "cacheMisses": 0
+  },
+  "metrics": {
+    "precision": {
+      "value": 1,
+      "ci95": [
+        1,
+        1
+      ]
+    },
+    "recall": {
+      "value": 1,
+      "ci95": [
+        1,
+        1
+      ]
+    },
+    "f1": {
+      "value": 1,
+      "ci95": [
+        1,
+        1
+      ]
+    },
+    "leakRate": {
+      "value": 0,
+      "ci95": [
+        0,
+        0
+      ]
+    },
+    "reviewRate": 0,
+    "falsePositiveRate": 0,
+    "ece": 0
+  },
+  "confusionMatrix": {
+    "tp": 5,
+    "fp": 0,
+    "fn": 0,
+    "tn": 0,
+    "total": 5
+  },
+  "threeClassMatrix": {
+    "supported": {
+      "verified": 5,
+      "needs_review": 0,
+      "rejected": 0
+    },
+    "partial": {
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 0
+    },
+    "unsupported": {
+      "verified": 0,
+      "needs_review": 0,
+      "rejected": 0
+    }
+  },
+  "eceReliabilityBins": [
+    {
+      "binStart": 0,
+      "binEnd": 0.1,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.1,
+      "binEnd": 0.2,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.2,
+      "binEnd": 0.30000000000000004,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.30000000000000004,
+      "binEnd": 0.4,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.4,
+      "binEnd": 0.5,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.5,
+      "binEnd": 0.6000000000000001,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.6000000000000001,
+      "binEnd": 0.7000000000000001,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.7000000000000001,
+      "binEnd": 0.8,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.8,
+      "binEnd": 0.9,
+      "count": 0,
+      "avgConfidence": 0,
+      "accuracy": 0
+    },
+    {
+      "binStart": 0.9,
+      "binEnd": 1,
+      "count": 5,
+      "avgConfidence": 1,
+      "accuracy": 1
+    }
+  ],
+  "perCaseType": {
+    "supported": {
+      "total": 4,
+      "verified": 4,
+      "needs_review": 0,
+      "rejected": 0,
+      "verifiedRate": 1,
+      "rejectionRate": 0
+    },
+    "paraphrased": {
+      "total": 1,
+      "verified": 1,
+      "needs_review": 0,
+      "rejected": 0,
+      "verifiedRate": 1,
+      "rejectionRate": 0
+    }
+  },
+  "promptInjection": {
+    "total": 0,
+    "upgradedToVerified": 0,
+    "attackSuccessRate": 0
+  },
+  "readmeInjection": {
+    "total": 0,
+    "upgradedToVerified": 0,
+    "attackSuccessRate": 0
+  },
+  "githubEvidenceBreakdown": {
+    "dependencyOnly": {
+      "total": 0,
+      "upgradedToVerified": 0,
+      "leakRate": 0
+    },
+    "readmeOnly": {
+      "total": 0,
+      "upgradedToVerified": 0,
+      "leakRate": 0
+    },
+    "sourceConfirmed": {
+      "total": 0,
+      "verified": 0,
+      "verifiedRate": 0
+    },
+    "readmeInjection": {
+      "total": 0,
+      "upgradedToVerified": 0,
+      "leakRate": 0
+    }
+  },
+  "predictions": [
+    {
+      "id": "c-003",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-006",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-009",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-011",
+      "caseType": "supported",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    },
+    {
+      "id": "c-016",
+      "caseType": "paraphrased",
+      "label": "supported",
+      "status": "verified",
+      "confidence": 1,
+      "caps": [],
+      "verdict": "yes",
+      "quoteUngrounded": false,
+      "projectEvidenceScore": null,
+      "contradictions": []
+    }
+  ]
+}

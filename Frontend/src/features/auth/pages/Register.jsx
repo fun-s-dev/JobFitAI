@@ -8,6 +8,7 @@ const Register = () => {
     const [ username, setUsername ] = useState("")
     const [ email, setEmail ] = useState("")
     const [ password, setPassword ] = useState("")
+    const [ inviteCode, setInviteCode ] = useState("")
     const [ error, setError ] = useState("")
 
     const {loading,handleRegister} = useAuth()
@@ -16,7 +17,7 @@ const Register = () => {
         e.preventDefault()
         setError("")
         try {
-            await handleRegister({username,email,password})
+            await handleRegister({username, email, password, inviteCode})
             navigate("/")
         } catch (err) {
             setError(err.message || "Registration failed")
@@ -52,6 +53,12 @@ const Register = () => {
                         <input
                             onChange={(e) => { setPassword(e.target.value) }}
                             type="password" id="password" name='password' placeholder='Enter password' />
+                    </div>
+                    <div className="input-group">
+                        <label htmlFor="inviteCode">Invite Code (Optional)</label>
+                        <input
+                            onChange={(e) => { setInviteCode(e.target.value) }}
+                            type="text" id="inviteCode" name='inviteCode' placeholder='Required when registration is invite-only' />
                     </div>
 
                     <button className='button primary-button' >Register</button>

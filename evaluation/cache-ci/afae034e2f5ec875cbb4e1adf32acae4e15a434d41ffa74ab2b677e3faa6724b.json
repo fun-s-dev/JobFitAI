@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Managed production Kubernetes clusters running over 350 microservices across AWS and Google Cloud Platform.",
+  "missingElements": [
+    "writing custom eBPF kernel network filters"
+  ],
+  "verdict": "partial"
+}

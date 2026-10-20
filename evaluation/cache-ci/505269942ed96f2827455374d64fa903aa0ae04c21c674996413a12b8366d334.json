@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Managed production Kubernetes clusters running over 350 microservices across AWS and Google Cloud Platform.",
+  "missingElements": [
+    "running over 1,500 microservices"
+  ],
+  "verdict": "partial"
+}

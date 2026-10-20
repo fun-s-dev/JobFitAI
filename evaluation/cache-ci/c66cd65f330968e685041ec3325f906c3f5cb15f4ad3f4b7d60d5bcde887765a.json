@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "",
+  "missingElements": [
+    "Engineered native iOS audio DSP equalization kernels in Swift and CoreAudio"
+  ],
+  "verdict": "no"
+}

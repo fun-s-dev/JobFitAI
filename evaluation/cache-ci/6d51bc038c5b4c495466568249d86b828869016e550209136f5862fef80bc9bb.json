@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Improved Google Lighthouse Core Web Vitals score from 61 to 94",
+  "missingElements": [
+    "implementing server-side streaming SSR in Next.js"
+  ],
+  "verdict": "partial"
+}

@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Authored 120+ automated integration and end-to-end tests using Vitest and Cypress",
+  "missingElements": [
+    "500+ automated integration and end-to-end tests"
+  ],
+  "verdict": "partial"
+}

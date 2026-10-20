@@ -1,0 +1,13 @@
+{
+  "name": "Ablation D: Full Pipeline (CI Offline Smoke)",
+  "slug": "ablation-d-ci",
+  "split": "test",
+  "cacheDir": "../cache-ci",
+  "signals": {
+    "similarity": true,
+    "entailment": true,
+    "quoteGrounding": true,
+    "guardrails": true
+  },
+  "description": "Full verification pipeline offline smoke check using committed synthetic replay cache"
+}

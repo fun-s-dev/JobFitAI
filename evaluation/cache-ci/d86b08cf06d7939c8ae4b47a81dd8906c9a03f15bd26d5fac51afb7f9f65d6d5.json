@@ -1,0 +1,9 @@
+{
+  "evidenceQuote": "",
+  "missingElements": [
+    "Built autonomous drone collision avoidance autopilot",
+    "Rust",
+    "embedded RTOS"
+  ],
+  "verdict": "no"
+}

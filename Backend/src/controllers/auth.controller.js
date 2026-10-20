@@ -2,6 +2,7 @@ const userModel = require('../models/user.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const tokenBlacklistModel = require('../models/blacklist.model');
+const { getCfg } = require('../v2/config/env');
 
 function getCookieOptions() {
     return {
@@ -19,7 +20,24 @@ function getCookieOptions() {
  * 
  */
 async function registerUserController(req,res){
-    const {username, email, password} = req.body;
+    const {username, email, password, inviteCode} = req.body;
+
+    const cfg = getCfg();
+    const isRegistrationOpen = process.env.REGISTRATION_OPEN !== undefined
+        ? (process.env.REGISTRATION_OPEN === 'true' || process.env.REGISTRATION_OPEN === true)
+        : cfg.REGISTRATION_OPEN;
+    const requiredInviteCode = process.env.INVITE_CODE !== undefined
+        ? process.env.INVITE_CODE
+        : cfg.INVITE_CODE;
+
+    if (!isRegistrationOpen) {
+        if (!requiredInviteCode) {
+            return res.status(403).json({ message: "Registration is currently closed" });
+        }
+        if (!inviteCode || inviteCode !== requiredInviteCode) {
+            return res.status(403).json({ message: "Registration is closed. A valid invite code is required." });
+        }
+    }
 
     if(!username || !email || !password){
         return res.status(400).json({message: "All fields are required"})

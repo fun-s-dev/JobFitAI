@@ -1,0 +1,8 @@
+{
+  "evidenceQuote": "",
+  "missingElements": [
+    "GraphQL API gateway schemas",
+    "query resolvers for customer accounts"
+  ],
+  "verdict": "no"
+}

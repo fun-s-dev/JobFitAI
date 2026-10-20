@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Cut annual cloud infrastructure expenditure by 31% through instance rightsizing and automated spot-instance scheduling.",
+  "missingElements": [
+    "automated FinOps budget alerts in Slack"
+  ],
+  "verdict": "partial"
+}

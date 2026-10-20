@@ -1,0 +1,43 @@
+services:
+  api:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+      args:
+        INSTALL_CHROMIUM: "false"
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGO_URI=mongodb://mongo:27017/jobfitai
+      - JWT_SECRET=local_docker_compose_super_secret_jwt_key_at_least_32_characters
+      - GOOGLE_GENAI_API_KEY=${GOOGLE_GENAI_API_KEY:-placeholder_for_local_smoke}
+      - PDF_RENDERING_ENABLED=false
+      - REGISTRATION_OPEN=true
+      - FRONTEND_URL=http://localhost:5173
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  mongo:
+    image: mongo:7-jammy
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  mongo-data:

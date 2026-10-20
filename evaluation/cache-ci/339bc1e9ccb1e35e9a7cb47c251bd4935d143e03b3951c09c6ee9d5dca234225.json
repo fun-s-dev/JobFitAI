@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Provisioned infrastructure as code (IaC) across 15 production environments using Terraform",
+  "missingElements": [
+    "generating automated multi-region disaster recovery runbooks"
+  ],
+  "verdict": "partial"
+}

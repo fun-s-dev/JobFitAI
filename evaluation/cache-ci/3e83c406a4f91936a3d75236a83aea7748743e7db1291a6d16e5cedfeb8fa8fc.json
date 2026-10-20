@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Architected centralized observability platform using Prometheus, Grafana, and OpenTelemetry",
+  "missingElements": [
+    "distributed tracing in Jaeger"
+  ],
+  "verdict": "partial"
+}

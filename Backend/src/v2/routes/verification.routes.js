@@ -5,6 +5,11 @@ const { loadOwnedReport } = require('../middlewares/loadOwnedReport');
 const { createRateLimiter } = require('../middlewares/rateLimits');
 const { getCfg } = require('../config/env');
 const {
+  guardUserVerifications,
+  guardLlmGenerationBudget,
+  guardEmbeddingBudget,
+} = require('../middlewares/budgetGuard');
+const {
   reportParamsSchema,
   verifyQuerySchema,
   verifyBodySchema,
@@ -35,6 +40,9 @@ router.post(
   verifyLimiter,
   validate({ params: reportParamsSchema, body: verifyBodySchema, query: verifyQuerySchema }),
   loadOwnedReport,
+  guardUserVerifications,
+  guardLlmGenerationBudget,
+  guardEmbeddingBudget,
   postVerifyReport
 );
 

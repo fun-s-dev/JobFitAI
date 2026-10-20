@@ -14,6 +14,19 @@ router.get('/health', (req, res) => {
   });
 });
 
+// GET /api/v2/demo/resume (serves scratch/my-resume.pdf for browser verification)
+const path = require('path');
+const fs = require('fs');
+router.get('/demo/resume', (req, res) => {
+  const resumePath = path.resolve(__dirname, '../../../scratch/my-resume.pdf');
+  if (fs.existsSync(resumePath)) {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="my-resume.pdf"');
+    return fs.createReadStream(resumePath).pipe(res);
+  }
+  res.status(404).json({ error: 'Demo resume not found' });
+});
+
 // Drafts endpoints
 const draftRouter = require('./draft.routes');
 router.use('/drafts', draftRouter);

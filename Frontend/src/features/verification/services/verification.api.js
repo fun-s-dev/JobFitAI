@@ -1,11 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-
-const api = axios.create({
-  baseURL: API_BASE || undefined,
-  withCredentials: true,
-});
+import { api } from '../../../services/apiClient';
 
 /**
  * Initiates an async verification run for a report. Returns 202 { jobId, status, progress }

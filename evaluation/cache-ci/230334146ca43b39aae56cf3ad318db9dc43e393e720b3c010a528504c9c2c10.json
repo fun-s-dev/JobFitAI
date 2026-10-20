@@ -1,0 +1,8 @@
+{
+  "evidenceQuote": "Built REST endpoints to create, read, update, and delete tasks",
+  "missingElements": [
+    "Node.js",
+    "Express.js"
+  ],
+  "verdict": "partial"
+}

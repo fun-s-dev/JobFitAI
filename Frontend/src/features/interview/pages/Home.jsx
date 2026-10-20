@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import "../style/interview.scss"
 import { useInterview } from '../hooks/useInterview.js'
 import { useNavigate } from 'react-router'
@@ -8,9 +8,45 @@ const Home = () => {
     const { loading, generateReport,reports } = useInterview()
     const [ jobDescription, setJobDescription ] = useState("")
     const [ selfDescription, setSelfDescription ] = useState("")
+    const [ isWakingUp, setIsWakingUp ] = useState(false)
+    const [ selectedFileName, setSelectedFileName ] = useState("")
     const resumeInputRef = useRef()
 
+    const handleLoadDemoResume = async (e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        try {
+            const res = await fetch('/api/v2/demo/resume');
+            if (res.ok) {
+                const blob = await res.blob();
+                const file = new File([blob], 'my-resume.pdf', { type: 'application/pdf' });
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                if (resumeInputRef.current) {
+                    resumeInputRef.current.files = dt.files;
+                }
+                setSelectedFileName('my-resume.pdf');
+            }
+        } catch (err) {
+            console.error('Failed to load demo resume', err);
+        }
+    };
+
     const navigate = useNavigate()
+
+    useEffect(() => {
+        let timer;
+        if (loading) {
+            timer = setTimeout(() => {
+                setIsWakingUp(true);
+            }, 3000);
+        } else {
+            setIsWakingUp(false);
+        }
+        return () => clearTimeout(timer);
+    }, [loading]);
 
     const handleGenerateReport = async () => {
         const resumeFile = resumeInputRef.current.files[ 0 ]
@@ -25,6 +61,11 @@ const Home = () => {
         return (
             <main className='loading-screen'>
                 <h1>Loading your interview plan...</h1>
+                {isWakingUp && (
+                    <p style={{ marginTop: '1rem', color: '#888', fontSize: '0.95rem' }}>
+                        Server is waking up (free hosting, up to a minute)... Please wait while instances initialize.
+                    </p>
+                )}
             </main>
         )
     }
@@ -74,17 +115,49 @@ const Home = () => {
 
                         {/* Upload Resume */}
                         <div className='upload-section'>
-                            <label className='section-label'>
-                                Upload Resume
-                                <span className='badge badge--best'>Best Results</span>
-                            </label>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <label className='section-label' style={{ marginBottom: 0 }}>
+                                    Upload Resume
+                                    <span className='badge badge--best'>Best Results</span>
+                                </label>
+                                <button
+                                    type='button'
+                                    id='load-demo-resume-btn'
+                                    onClick={handleLoadDemoResume}
+                                    style={{
+                                        background: 'transparent',
+                                        border: '1px dashed #4f46e5',
+                                        color: '#818cf8',
+                                        borderRadius: '4px',
+                                        fontSize: '0.75rem',
+                                        padding: '2px 8px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Use my-resume.pdf
+                                </button>
+                            </div>
                             <label className='dropzone' htmlFor='resume'>
                                 <span className='dropzone__icon'>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" /></svg>
                                 </span>
-                                <p className='dropzone__title'>Click to upload or drag &amp; drop</p>
-                                <p className='dropzone__subtitle'>PDF only (Max 3MB)</p>
-                                <input ref={resumeInputRef} hidden type='file' id='resume' name='resume' accept='.pdf' />
+                                <p className='dropzone__title' id='dropzone-file-name'>
+                                    {selectedFileName ? `Selected: ${selectedFileName}` : 'Click to upload or drag & drop'}
+                                </p>
+                                <p className='dropzone__subtitle'>{selectedFileName ? 'my-resume.pdf attached' : 'PDF only (Max 3MB)'}</p>
+                                <input
+                                    ref={resumeInputRef}
+                                    hidden
+                                    type='file'
+                                    id='resume'
+                                    name='resume'
+                                    accept='.pdf'
+                                    onChange={(e) => {
+                                        if (e.target.files && e.target.files[0]) {
+                                            setSelectedFileName(e.target.files[0].name);
+                                        }
+                                    }}
+                                />
                             </label>
                         </div>
 
@@ -143,9 +216,7 @@ const Home = () => {
 
             {/* Page Footer */}
             <footer className='page-footer'>
-                <a href='#'>Privacy Policy</a>
-                <a href='#'>Terms of Service</a>
-                <a href='#'>Help Center</a>
+                <span>JobFitAI v2 · AI-Assisted Resume Verification</span>
             </footer>
         </div>
     )

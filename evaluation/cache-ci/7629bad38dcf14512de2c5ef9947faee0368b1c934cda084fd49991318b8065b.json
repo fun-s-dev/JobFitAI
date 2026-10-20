@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "",
+  "missingElements": [
+    "Configured automated API endpoint assertions using Supertest for REST services"
+  ],
+  "verdict": "no"
+}

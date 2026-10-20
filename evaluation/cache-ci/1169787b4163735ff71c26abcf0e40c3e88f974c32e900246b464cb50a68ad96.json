@@ -1,0 +1,9 @@
+{
+  "evidenceQuote": "",
+  "missingElements": [
+    "password hashing security policies",
+    "bcryptjs",
+    "user authentication"
+  ],
+  "verdict": "no"
+}

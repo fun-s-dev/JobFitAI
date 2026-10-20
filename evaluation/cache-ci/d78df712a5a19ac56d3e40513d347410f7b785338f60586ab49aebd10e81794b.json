@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Backend engineer with 6 years of experience designing scalable microservices... using Node.js, Redis, and MongoDB",
+  "missingElements": [
+    "Constructed Mongoose data models"
+  ],
+  "verdict": "partial"
+}

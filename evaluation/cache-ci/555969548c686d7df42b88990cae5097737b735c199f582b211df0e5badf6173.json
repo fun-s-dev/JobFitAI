@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Reduced database p95 query latency by 42%",
+  "missingElements": [
+    "Cassandra CQL queries"
+  ],
+  "verdict": "partial"
+}

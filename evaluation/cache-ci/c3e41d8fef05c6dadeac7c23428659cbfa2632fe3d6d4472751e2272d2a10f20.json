@@ -1,0 +1,8 @@
+{
+  "evidenceQuote": "- Authored 120+ automated integration and end-to-end tests using Vitest and Cypress",
+  "missingElements": [
+    "Selenium",
+    "Karma"
+  ],
+  "verdict": "partial"
+}

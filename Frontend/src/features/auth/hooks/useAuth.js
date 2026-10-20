@@ -21,10 +21,10 @@ export const useAuth = () => {
         }
     }
 
-    const handleRegister = async ({ username, email, password }) => {
+    const handleRegister = async ({ username, email, password, inviteCode }) => {
         setLoading(true)
         try {
-            const data = await register({ username, email, password })
+            const data = await register({ username, email, password, inviteCode })
             setUser(data.user)
             return data.user
         } finally {
@@ -35,29 +35,34 @@ export const useAuth = () => {
     const handleLogout = async () => {
         setLoading(true)
         try {
-            const data = await logout()
+            await logout()
             setUser(null)
         } catch (err) {
-
+            console.warn('Logout encountered an issue:', err.message || 'Network error');
+            setUser(null);
         } finally {
             setLoading(false)
         }
     }
 
     useEffect(() => {
-
         const getAndSetUser = async () => {
             try {
-
                 const data = await getMe()
-                setUser(data.user)
-            } catch (err) { } finally {
+                if (data?.user) {
+                    setUser(data.user)
+                } else {
+                    setUser(null)
+                }
+            } catch (err) {
+                console.warn('Could not restore session:', err.message || 'Unauthenticated');
+                setUser(null)
+            } finally {
                 setLoading(false)
             }
         }
 
         getAndSetUser()
-
     }, [])
 
     return { user, loading, handleRegister, handleLogin, handleLogout }

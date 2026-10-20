@@ -9,6 +9,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-very-long-ke
 process.env.NODE_ENV = 'test';
 process.env.MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/test-jobfitai';
 process.env.GOOGLE_GENAI_API_KEY = process.env.GOOGLE_GENAI_API_KEY || 'test-dummy-google-genai-key';
+process.env.USER_DAILY_VERIFICATIONS = process.env.USER_DAILY_VERIFICATIONS || '100';
 
 let mongoServer;
 let appInstance;

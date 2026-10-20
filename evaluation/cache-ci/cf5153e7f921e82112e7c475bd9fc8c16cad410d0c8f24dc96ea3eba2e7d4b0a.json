@@ -1,0 +1,8 @@
+{
+  "evidenceQuote": "Architected centralized observability platform using Prometheus, Grafana, and OpenTelemetry processing 50M metrics daily.",
+  "missingElements": [
+    "Datadog",
+    "processing 250M metrics daily"
+  ],
+  "verdict": "partial"
+}

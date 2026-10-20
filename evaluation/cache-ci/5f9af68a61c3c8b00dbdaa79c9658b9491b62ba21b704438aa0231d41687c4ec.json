@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "",
+  "missingElements": [
+    "Configured Kubernetes cluster deployments on AWS using Terraform and Helm charts"
+  ],
+  "verdict": "no"
+}

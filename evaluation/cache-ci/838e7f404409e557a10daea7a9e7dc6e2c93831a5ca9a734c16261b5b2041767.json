@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Provisioned infrastructure as code (IaC) across 15 production environments",
+  "missingElements": [
+    "Chef and Puppet"
+  ],
+  "verdict": "partial"
+}

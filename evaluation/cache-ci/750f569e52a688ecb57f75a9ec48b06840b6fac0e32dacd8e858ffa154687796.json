@@ -1,0 +1,8 @@
+{
+  "evidenceQuote": "Spearheaded migration from monolithic REST API to event-driven microservices",
+  "missingElements": [
+    "RabbitMQ",
+    "Vagrant"
+  ],
+  "verdict": "partial"
+}

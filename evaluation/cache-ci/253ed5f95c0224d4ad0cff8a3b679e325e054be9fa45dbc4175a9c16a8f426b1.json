@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Implemented network security policies and TLS mutual authentication using HashiCorp Vault and Consul",
+  "missingElements": [
+    "Istio Service Mesh"
+  ],
+  "verdict": "partial"
+}

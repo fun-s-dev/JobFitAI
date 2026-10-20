@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Provisioned infrastructure as code (IaC) across 15 production environments using Terraform and Ansible.",
+  "missingElements": [
+    "decreasing customer churn rate by 34% across accounts"
+  ],
+  "verdict": "partial"
+}

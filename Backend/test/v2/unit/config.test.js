@@ -32,12 +32,48 @@ describe('v2 Environment Configuration (loadConfig)', () => {
 
     expect(config.PORT).toBe(3000);
     expect(typeof config.PORT).toBe('number');
+    expect(config.FRONTEND_URL).toBe('http://localhost:5173');
+    expect(config.TRUST_PROXY_HOPS).toBe(1);
+    expect(config.REGISTRATION_OPEN).toBe(true);
+    expect(config.INVITE_CODE).toBeUndefined();
+    expect(config.USER_DAILY_VERIFICATIONS).toBe(3);
+    expect(config.LLM_DAILY_BUDGET).toBe(400);
+    expect(config.EMBEDDING_DAILY_BUDGET).toBe(800);
+    expect(config.PDF_RENDERING_ENABLED).toBe(true);
 
     // Should be frozen
     expect(Object.isFrozen(config)).toBe(true);
     expect(() => {
       config.PORT = 9999;
     }).toThrow();
+  });
+
+  it('defaults PDF_RENDERING_ENABLED and REGISTRATION_OPEN to false in production', () => {
+    const prodConfig = loadConfig({
+      ...validBaseEnv,
+      NODE_ENV: 'production',
+    });
+    expect(prodConfig.PDF_RENDERING_ENABLED).toBe(false);
+    expect(prodConfig.REGISTRATION_OPEN).toBe(false);
+  });
+
+  it('allows overriding PDF_RENDERING_ENABLED and REGISTRATION_OPEN explicitly in production', () => {
+    const prodConfig = loadConfig({
+      ...validBaseEnv,
+      NODE_ENV: 'production',
+      PDF_RENDERING_ENABLED: 'true',
+      REGISTRATION_OPEN: 'true',
+      INVITE_CODE: 'super-secret-invite',
+      USER_DAILY_VERIFICATIONS: '5',
+      LLM_DAILY_BUDGET: '500',
+      EMBEDDING_DAILY_BUDGET: '1000',
+    });
+    expect(prodConfig.PDF_RENDERING_ENABLED).toBe(true);
+    expect(prodConfig.REGISTRATION_OPEN).toBe(true);
+    expect(prodConfig.INVITE_CODE).toBe('super-secret-invite');
+    expect(prodConfig.USER_DAILY_VERIFICATIONS).toBe(5);
+    expect(prodConfig.LLM_DAILY_BUDGET).toBe(500);
+    expect(prodConfig.EMBEDDING_DAILY_BUDGET).toBe(1000);
   });
 
   it('coerces PORT from a string to a positive number', () => {
@@ -48,6 +84,16 @@ describe('v2 Environment Configuration (loadConfig)', () => {
     const config = loadConfig(customPortEnv);
     expect(config.PORT).toBe(5001);
     expect(typeof config.PORT).toBe('number');
+  });
+
+  it('correctly parses and coerces TRUST_PROXY_HOPS', () => {
+    const customHopsEnv = {
+      ...validBaseEnv,
+      TRUST_PROXY_HOPS: '2',
+    };
+    const config = loadConfig(customHopsEnv);
+    expect(config.TRUST_PROXY_HOPS).toBe(2);
+    expect(typeof config.TRUST_PROXY_HOPS).toBe('number');
   });
 
   it('fails with a readable message when JWT_SECRET is shorter than 32 characters', () => {

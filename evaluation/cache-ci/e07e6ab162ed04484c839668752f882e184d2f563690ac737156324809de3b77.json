@@ -1,0 +1,7 @@
+{
+  "evidenceQuote": "Built real-time change-data-capture (CDC) pipelines streaming transaction events from MySQL into Snowflake with Debezium",
+  "missingElements": [
+    "Apache NiFi"
+  ],
+  "verdict": "partial"
+}
