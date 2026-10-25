@@ -4,7 +4,8 @@
 FROM node:22-slim AS deps
 WORKDIR /app
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 COPY package*.json ./
 RUN npm ci --omit=dev
 
