@@ -1,7 +1,0 @@
-{
-  "evidenceQuote": "Designed Mongoose schemas",
-  "missingElements": [
-    "PostgreSQL database replication"
-  ],
-  "verdict": "partial"
-}
