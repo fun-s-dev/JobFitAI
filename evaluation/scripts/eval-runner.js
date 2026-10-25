@@ -69,13 +69,25 @@ function resolveFilePath(inputPath) {
   return fromCwd;
 }
 
-// Record/replay cache decorator around createLlmClient
+function getReportOutputPath({ reportsDir, slug, limit }) {
+  const isLimitedOrSmoke = Boolean((limit && limit > 0) || (slug && (slug.includes('smoke') || slug.includes('ci'))));
+  const targetDir = isLimitedOrSmoke ? path.join(reportsDir, 'smoke') : reportsDir;
+  return {
+    isLimitedOrSmoke,
+    targetDir,
+    partialReportPath: path.join(targetDir, `partial-${slug}.json`),
+    finalReportPath: path.join(targetDir, `${slug}-report.json`),
+  };
+}
+
+// Record/replay cache decorator around createLlmClient (structured generation and embeddings)
 function createCachedLlmClient(rawLlmClient, cacheDir, statsCollector) {
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
   }
 
   const originalGenerate = rawLlmClient.generateStructured.bind(rawLlmClient);
+  const originalEmbedTexts = rawLlmClient.embedTexts ? rawLlmClient.embedTexts.bind(rawLlmClient) : null;
 
   async function cachedGenerateStructured(params) {
     const { model, system, prompt, thinkingLevel } = params;
@@ -108,9 +120,86 @@ function createCachedLlmClient(rawLlmClient, cacheDir, statsCollector) {
     return result;
   }
 
+  async function cachedEmbedTexts(texts, options = {}) {
+    if (!Array.isArray(texts) || texts.length === 0) {
+      return { vectors: [], stats: { hits: 0, misses: 0, apiCalls: 0 } };
+    }
+
+    const vectors = new Array(texts.length);
+    const missingIndices = [];
+    const missingTexts = [];
+    let hits = 0;
+
+    const embeddingsMapFile = path.join(cacheDir, 'embeddings.json');
+    let embeddingsMap = null;
+    if (fs.existsSync(embeddingsMapFile)) {
+      try {
+        embeddingsMap = JSON.parse(fs.readFileSync(embeddingsMapFile, 'utf8'));
+      } catch {}
+    }
+
+    for (let i = 0; i < texts.length; i++) {
+      const text = texts[i];
+      const cacheKey = crypto
+        .createHash('sha256')
+        .update(`embed|${text}`)
+        .digest('hex');
+
+      if (embeddingsMap && embeddingsMap[cacheKey]) {
+        vectors[i] = embeddingsMap[cacheKey];
+        hits++;
+        continue;
+      }
+
+      const cacheFile = path.join(cacheDir, `embed_${cacheKey}.json`);
+
+      if (fs.existsSync(cacheFile)) {
+        try {
+          const cachedVec = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+          vectors[i] = cachedVec;
+          hits++;
+          continue;
+        } catch {}
+      }
+
+      missingIndices.push(i);
+      missingTexts.push(text);
+    }
+
+    if (missingTexts.length > 0) {
+      if (originalEmbedTexts) {
+        const { vectors: newVectors } = await originalEmbedTexts(missingTexts, options);
+        for (let j = 0; j < missingTexts.length; j++) {
+          const origIdx = missingIndices[j];
+          const vec = newVectors[j];
+          vectors[origIdx] = vec;
+
+          const cacheKey = crypto
+            .createHash('sha256')
+            .update(`embed|${missingTexts[j]}`)
+            .digest('hex');
+          const cacheFile = path.join(cacheDir, `embed_${cacheKey}.json`);
+          try {
+            fs.writeFileSync(cacheFile, JSON.stringify(vec), 'utf8');
+          } catch {}
+        }
+      }
+    }
+
+    return {
+      vectors,
+      stats: {
+        hits,
+        misses: missingTexts.length,
+        apiCalls: missingTexts.length > 0 ? 1 : 0,
+      },
+    };
+  }
+
   return {
     ...rawLlmClient,
     generateStructured: cachedGenerateStructured,
+    embedTexts: cachedEmbedTexts,
   };
 }
 
@@ -136,8 +225,21 @@ async function runEvaluation() {
   console.log(`Signals: ${JSON.stringify(config.signals)}`);
   console.log(`======================================================\n`);
 
-  // Connect to MongoDB Atlas for real callRepo logging and EmbeddingCache
-  await mongoose.connect(appConfig.MONGO_URI);
+  // Connect to MongoDB Atlas for real callRepo logging and EmbeddingCache,
+  // falling back to MongoMemoryServer in offline/CI environments
+  let mongoServer = null;
+  try {
+    await mongoose.connect(appConfig.MONGO_URI, { serverSelectionTimeoutMS: 2000 });
+  } catch (mongoErr) {
+    try {
+      const { MongoMemoryServer } = require('mongodb-memory-server');
+      mongoServer = await MongoMemoryServer.create();
+      await mongoose.connect(mongoServer.getUri());
+      console.log('Connected to in-memory MongoDB for offline/CI evaluation run.');
+    } catch (memErr) {
+      console.warn('Could not start MongoMemoryServer:', memErr.message);
+    }
+  }
 
   const statsCollector = {
     cacheHits: 0,
@@ -154,8 +256,9 @@ async function runEvaluation() {
         ? resolveFilePath(process.env.EVAL_CACHE_DIR)
         : path.resolve(__dirname, '../cache')));
   const reportsDir = path.resolve(__dirname, '../reports');
-  if (!fs.existsSync(reportsDir)) {
-    fs.mkdirSync(reportsDir, { recursive: true });
+  const reportPaths = getReportOutputPath({ reportsDir, slug, limit });
+  if (!fs.existsSync(reportPaths.targetDir)) {
+    fs.mkdirSync(reportPaths.targetDir, { recursive: true });
   }
 
   const baseLlmClient = createLlmClient({
@@ -246,7 +349,7 @@ async function runEvaluation() {
   console.log(`Evaluating ${cases.length} cases on '${split}' split...`);
 
   const predictions = [];
-  const partialReportPath = path.join(reportsDir, `partial-${slug}.json`);
+  const partialReportPath = reportPaths.partialReportPath;
 
   const tStart = Date.now();
 
@@ -462,7 +565,7 @@ async function runEvaluation() {
     predictions,
   };
 
-  const finalReportPath = path.join(reportsDir, `${slug}-report.json`);
+  const finalReportPath = reportPaths.finalReportPath;
   fs.writeFileSync(finalReportPath, JSON.stringify(finalReport, null, 2), 'utf8');
 
   // Print Summary Table
@@ -483,10 +586,24 @@ async function runEvaluation() {
   console.log(`Cache: ${statsCollector.cacheHits} hits, ${statsCollector.cacheMisses} misses (${statsCollector.liveApiCalls} live calls, ${durationMs}ms total)`);
   console.log(`Report written to: ${finalReportPath}\n`);
 
-  await mongoose.disconnect();
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+  if (mongoServer) {
+    await mongoServer.stop();
+  }
 }
 
-runEvaluation().catch((err) => {
-  console.error('Fatal evaluation runner error:', err);
-  process.exit(1);
-});
+module.exports = {
+  createCachedLlmClient,
+  resolveFilePath,
+  getReportOutputPath,
+  runEvaluation,
+};
+
+if (require.main === module) {
+  runEvaluation().catch((err) => {
+    console.error('Fatal evaluation runner error:', err);
+    process.exit(1);
+  });
+}

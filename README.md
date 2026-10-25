@@ -240,6 +240,20 @@ node ../evaluation/scripts/eval-runner.js --config ../evaluation/configs/ablatio
 
 Detailed benchmark evaluation reports produced by the offline evaluation harness are available in the [`evaluation/reports/`](evaluation/reports/) directory.
 
+### Benchmark Composition
+
+The evaluation benchmark contains 196 synthetically constructed test cases spanning 14 balanced categories (14 cases per category) created across project milestones:
+
+| Benchmark Subset | Cases ($n$) | Description & Composition |
+| :--- | :---: | :--- |
+| **Base Resume Cases** | 126 | 9 core claim categories (14 cases each): supported, paraphrased, partial, number-changed, technology-swapped, role-inflated, metric-fabricated, fully-fabricated, and prompt-injection |
+| **Adversarial Controls** | 14 | Security-related control texts lacking adversarial instructions, testing defense false-positive specificity |
+| **GitHub-Backed Cases** | 56 | 4 repository evidence categories added in M9 (14 cases each): dependency-only, readme-only, source-confirmed, and readme-injection |
+| **Total Benchmark** | **196** | 14 categories $\times$ 14 synthetic cases (`evaluation/data/cases.jsonl`), stratified into TRAIN/CV (71.4%) and TEST (28.6%) |
+| **TRAIN / 5-Fold CV Split** | 140 | 10 cases per category $\times$ 14 categories (`evaluation/data/train.jsonl`); 112 non-supported cases (98 unsupported + 14 controls) and 28 supported cases |
+| **M6 TEST Split (Initial)** | 36 / 40 | Initial M6 held-out test split (4 cases $\times$ 9 base categories = 36 cases, or 40 cases including 4 injection controls) |
+| **Held-Out TEST Split (Final)** | **56** | 4 cases per category $\times$ 14 categories (`evaluation/data/test.jsonl`): 12 supported claims + 44 non-supported claims |
+
 ### Performance on Benchmark TEST Split (56 Cases — Synthetic, Labels by Construction)
 
 > **Important Caveat**: Numbers reflect synthetic test cases with labels assigned by construction. The TEST split was inspected during development and exhibits ceiling effects across ablations; treat these as development benchmarks rather than an independent held-out evaluation.
@@ -252,7 +266,9 @@ Detailed benchmark evaluation reports produced by the offline evaluation harness
 | **Ablation D** (+ Quote Grounding & Guardrails) | 100.0% | 66.7% | 0.8000 | 0.0%* | 0.3600 | [ablation-d-report.json](evaluation/reports/ablation-d-report.json) |
 | **Ablation E** (+ GitHub AST & Project Evidence) | **100.0%** | **66.7%** | **0.8000** | **0.0%*** | **0.4254** | [ablation-e-report.json](evaluation/reports/ablation-e-report.json) |
 
-*\*Zero leaks observed on 44 synthetic non-supported test cases (0.0% empirical leak rate; Wilson 95% score interval upper bound: 8.03%, Rule of Three: 6.82%). Across 5-fold cross-validation ($n=140$, 112 non-supported cases), zero leaks were observed (Wilson 95% upper bound: 3.32%, Rule of Three on 98 unsupported claims: 3.06%).*
+**Understanding Recall (66.7%)**: On the 56-case TEST split, recall is plainly **66.7%** across all multi-signal ablations (B through E): exactly **8 of 12 supported claims** verify automatically ($\text{confidence} \ge 0.80$), while the remaining 4 supported claims are flagged for human review (`needs_review`) rather than being automatically approved. Zero supported claims are rejected by the pipeline, and candidates retain the ability to manually confirm reviewable items before export.
+
+*\*Zero leaks observed on 44 synthetic non-supported test cases (0.0% empirical leak rate; Wilson 95% score interval upper bound: 8.03%, Rule of Three: 6.82%). Across 5-fold cross-validation on the 140-case training split ($n=112$ non-supported cases, comprising 98 unsupported claims and 14 injection controls), zero leaks were observed (Wilson 95% score interval upper bound: 3.32%, Rule of Three: 2.68% on all $n=112$ non-supported cases; or 3.06% when evaluated on the $n=98$ unsupported claims alone).*
 
 *Adversarial injection sample size ($n$): On held-out TEST ($n=56$), 4 prompt injection cases (`prompt_injection`) and 4 README injection cases (`readme_injection`) were tested ($n=8$ adversarial cases total; $n=4$ resume prompt injections). Zero leaks were observed (0/4 resume prompt injections; Wilson 95% score interval upper bound: 48.99%, Rule of Three: 75.0%). Across the entire 196-case benchmark, 14 prompt injections and 14 README injections were evaluated ($n=28$ total adversarial cases), with zero leaks observed (0/14 resume prompt injections, Wilson 95% upper bound: 20.91%, Rule of Three: 21.43%; 0/28 combined injections, Wilson 95% upper bound: 11.35%, Rule of Three: 10.71%).*
 

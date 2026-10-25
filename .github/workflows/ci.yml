@@ -35,13 +35,16 @@ jobs:
         run: npm test
         env:
           NODE_ENV: test
+          MONGO_URI: mongodb://127.0.0.1:27017/ci-dummy
           JWT_SECRET: ci_github_actions_dummy_jwt_secret_with_at_least_32_characters
           GOOGLE_GENAI_API_KEY: dummy_genai_key_for_offline_ci_tests
+          PUPPETEER_NO_SANDBOX: "true"
 
       - name: Run Eval smoke check (offline replay cache)
         run: node ../evaluation/scripts/eval-runner.js --config ../evaluation/configs/ablation-d-ci.json --limit 5
         env:
           NODE_ENV: test
+          MONGO_URI: mongodb://127.0.0.1:27017/ci-dummy
           JWT_SECRET: ci_github_actions_dummy_jwt_secret_with_at_least_32_characters
           GOOGLE_GENAI_API_KEY: dummy_genai_key_for_offline_ci_tests
           RECORD_LLM_CACHE: "false"
