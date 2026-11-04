@@ -3,59 +3,72 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { setGithubLinkProject, updateGithubProjectDetails } from '../services/verification.api';
 import { getApiErrorMessage } from '../../../services/apiError';
 
-const noteStyle = { fontSize: '0.85rem', color: '#9aa4b2', margin: '0.5rem 0' };
-const errorStyle = { color: '#ff6b6b', fontSize: '0.9rem', margin: '0.5rem 0' };
-
 /**
- * One selected GitHub project: the name shown on the resume, and the confirmation that the user built it.
- *
- * Owning a repository does not show that you wrote its code, so the project is only exported after
- * "I built this project" is ticked. The name can be changed at any time without verifying again.
+ * The name shown on the resume for a repository, with a Save button.
+ * Works for any verified repository: a project written from it, or a resume project it is assigned to.
  */
-function GithubProjectCard({ link, onSave, isSaving }) {
+function NameField({ link, onSave, isSaving }) {
   const [name, setName] = useState(link.displayName || '');
-  const effectiveName = link.displayName || link.defaultName;
   const dirty = name.trim() !== (link.displayName || '');
+  const inputId = `name-${link.analysisId}`;
 
   return (
-    <li data-testid={`github-project-${link.analysisId}`} style={{ margin: '0.9rem 0', padding: '0.75rem', border: '1px solid #2a3140', borderRadius: 8 }}>
-      <div>
-        <strong>{effectiveName}</strong> <small style={{ color: '#9aa4b2' }}>from {link.repositoryFullName}</small>
+    <div className='project-card__row'>
+      <label htmlFor={inputId} className='vp-label'>Name on your resume</label>
+      <input
+        id={inputId}
+        type='text'
+        className='vp-input'
+        value={name}
+        maxLength={100}
+        placeholder={link.defaultName}
+        onChange={(e) => setName(e.target.value)}
+        disabled={isSaving}
+      />
+      <button
+        type='button'
+        className='vp-btn vp-btn--secondary'
+        disabled={!dirty || isSaving}
+        onClick={() => onSave({ analysisId: link.analysisId, details: { displayName: name.trim() ? name : null } })}
+      >
+        Save name
+      </button>
+    </div>
+  );
+}
+
+/**
+ * One project written from a selected repository: its name on the resume, and the confirmation that the
+ * user built it. Owning a repository does not show that you wrote its code, so the project is only included
+ * in the exported resume after "I built this project" is ticked.
+ */
+function GithubProjectCard({ link, onSave, isSaving }) {
+  const effectiveName = link.displayName || link.defaultName;
+
+  return (
+    <li
+      className={`project-card${link.authorshipConfirmed ? ' project-card--confirmed' : ''}`}
+      data-testid={`github-project-${link.analysisId}`}
+    >
+      <div className='project-card__head'>
+        <span className='project-card__title'>{effectiveName}</span>
+        <span className='project-card__repo'>from {link.repositoryFullName}</span>
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-        <label htmlFor={`name-${link.analysisId}`}>Name on your resume</label>
-        <input
-          id={`name-${link.analysisId}`}
-          type='text'
-          value={name}
-          maxLength={100}
-          placeholder={link.defaultName}
-          onChange={(e) => setName(e.target.value)}
-          disabled={isSaving}
-        />
-        <button
-          type='button'
-          className='button secondary-button'
-          disabled={!dirty || isSaving}
-          onClick={() => onSave({ analysisId: link.analysisId, details: { displayName: name.trim() ? name : null } })}
-        >
-          Save name
-        </button>
-      </div>
+      <NameField link={link} onSave={onSave} isSaving={isSaving} />
 
-      <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginTop: '0.6rem' }}>
+      <label className='project-card__confirm'>
         <input
           type='checkbox'
+          className='vp-switch'
           checked={link.authorshipConfirmed}
           disabled={isSaving}
           onChange={(e) => onSave({ analysisId: link.analysisId, details: { authorshipConfirmed: e.target.checked } })}
           aria-label={`I built ${effectiveName}`}
         />
         <span>
-          I built this project
-          <span style={{ fontSize: '0.85rem', color: '#9aa4b2' }}>
-            {' '}
+          <span className='project-card__confirm-title'>I built this project</span>
+          <span className='project-card__confirm-note'>
             Owning a repository does not show that you wrote its code, so this project is only included in your
             resume after you confirm it.
           </span>
@@ -63,9 +76,12 @@ function GithubProjectCard({ link, onSave, isSaving }) {
       </label>
 
       {!link.authorshipConfirmed && (
-        <p style={{ ...noteStyle, color: '#e0a458' }} data-testid={`not-confirmed-${link.analysisId}`}>
-          Not confirmed yet: this project will not appear in your exported resume.
-        </p>
+        <div className='vp-alert vp-alert--warning' data-testid={`not-confirmed-${link.analysisId}`}>
+          <span className='vp-alert__icon' aria-hidden='true'>⚠</span>
+          <span className='vp-alert__body'>
+            Not confirmed yet: this project will not appear in your exported resume.
+          </span>
+        </div>
       )}
     </li>
   );
@@ -76,7 +92,8 @@ function GithubProjectCard({ link, onSave, isSaving }) {
  *
  * - Repositories chosen under "Best projects for this job" are your GitHub projects: you name them and
  *   confirm that you built them.
- * - Any other linked repository only supports the claims of a resume project it is assigned to.
+ * - Any other linked repository supports the claims of a resume project it is assigned to. You can give that
+ *   project a different name on the resume too.
  *
  * @param {object} props
  * @param {string} props.reportId
@@ -118,16 +135,19 @@ export default function GithubProjectLinks({ reportId, data }) {
   const otherLinks = links.filter((l) => !(l.verified && l.selected));
 
   return (
-    <div data-testid='github-project-links' style={{ margin: '1rem 0' }}>
+    <div data-testid='github-project-links' className='projects-section'>
       {githubProjects.length > 0 && (
-        <div data-testid='github-projects'>
-          <h4 style={{ margin: '0 0 0.25rem 0' }}>Your GitHub projects</h4>
-          <p style={noteStyle}>
-            When you generate the resume draft, its Projects section is written from these repositories (from
-            their README, description and technology stack only). Each project is then checked against its own
-            repository.
-          </p>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        <div data-testid='github-projects' className='projects-section'>
+          <hr className='vp-panel__divider' />
+          <div>
+            <h3 className='vp-panel__sub'>Your GitHub projects</h3>
+            <p className='vp-panel__desc'>
+              When you generate the resume draft, its Projects section is written from these repositories (from
+              their README, description and technology stack only). Each project is then checked against its own
+              repository.
+            </p>
+          </div>
+          <ul className='project-list'>
             {githubProjects.map((link) => (
               <GithubProjectCard
                 key={`${link.analysisId}:${link.displayName || ''}`}
@@ -141,34 +161,42 @@ export default function GithubProjectLinks({ reportId, data }) {
       )}
 
       {otherLinks.length > 0 && (
-        <div data-testid='other-linked-repos'>
-          <h4 style={{ margin: '1rem 0 0.25rem 0' }}>Other linked repositories</h4>
-          <p style={noteStyle}>
-            A repository only supports the claims of the project it belongs to. Choose the project for each
-            repository below when the names do not match.
-          </p>
+        <div data-testid='other-linked-repos' className='projects-section'>
+          <hr className='vp-panel__divider' />
+          <div>
+            <h3 className='vp-panel__sub'>Other linked repositories</h3>
+            <p className='vp-panel__desc'>
+              A repository only supports the claims of the project it belongs to. Choose the project for each
+              repository below when the names do not match. You can also change the name that project has on your
+              resume.
+            </p>
+          </div>
 
           {!hasDraft && (
-            <p style={noteStyle} data-testid='links-need-draft'>
-              Generate the resume draft first. Then you can match each repository to a project in it.
-            </p>
+            <div className='vp-alert vp-alert--info' data-testid='links-need-draft'>
+              <span className='vp-alert__icon' aria-hidden='true'>ℹ</span>
+              <span className='vp-alert__body'>
+                Generate the resume draft first. Then you can match each repository to a project in it.
+              </span>
+            </div>
           )}
 
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          <ul className='project-list'>
             {otherLinks.map((link) => {
               const selectId = `project-for-${link.analysisId}`;
               return (
-                <li key={link.analysisId} style={{ margin: '0.6rem 0' }}>
-                  <div>
-                    <strong>{link.repositoryFullName}</strong>{' '}
-                    {!link.verified && <small style={{ color: '#e0a458' }}>(ownership not verified, not counted)</small>}
-                  </div>
+                <li key={`${link.analysisId}:${link.displayName || ''}`} className='link-row'>
+                  <span className='link-row__name'>
+                    {link.repositoryFullName}{' '}
+                    {!link.verified && <small className='link-row__status link-row__status--warn'>(ownership not verified, not counted)</small>}
+                  </span>
 
                   {link.verified && hasDraft && (
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <label htmlFor={selectId}>Belongs to project</label>
+                    <div className='link-row__controls'>
+                      <label htmlFor={selectId} className='vp-label'>Belongs to project</label>
                       <select
                         id={selectId}
+                        className='link-row__select'
                         value={link.explicitProjectName || ''}
                         disabled={assign.isPending}
                         onChange={(e) => assign.mutate({ analysisId: link.analysisId, projectName: e.target.value || null })}
@@ -186,11 +214,15 @@ export default function GithubProjectLinks({ reportId, data }) {
                   )}
 
                   {link.verified && hasDraft && (
-                    <div style={link.matchedProject ? { ...noteStyle, color: '#34d399' } : { ...noteStyle, color: '#e0a458' }}>
+                    <span className={`link-row__status ${link.matchedProject ? 'link-row__status--ok' : 'link-row__status--warn'}`}>
                       {link.matchedProject
                         ? `Used as evidence for: ${link.matchedProject}`
                         : 'Not matched to a project in your draft yet, so it is not used as evidence.'}
-                    </div>
+                    </span>
+                  )}
+
+                  {link.verified && link.matchedProject && (
+                    <NameField link={link} onSave={(vars) => saveDetails.mutate(vars)} isSaving={saveDetails.isPending} />
                   )}
                 </li>
               );
@@ -200,9 +232,10 @@ export default function GithubProjectLinks({ reportId, data }) {
       )}
 
       {error && (
-        <p role='alert' style={errorStyle}>
-          {error}
-        </p>
+        <div className='vp-alert vp-alert--error' role='alert'>
+          <span className='vp-alert__icon' aria-hidden='true'>⚠</span>
+          <span className='vp-alert__body'>{error}</span>
+        </div>
       )}
     </div>
   );

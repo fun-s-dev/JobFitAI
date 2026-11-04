@@ -82,6 +82,9 @@ export default function ClaimRow({
             {claim.claimType && (
               <span className="claim-tag claim-tag--type">{claim.claimType}</span>
             )}
+            {claim.project && (
+              <span className="claim-tag claim-tag--project">{claim.project}</span>
+            )}
             {claim.bulletId && (
               <span className="claim-tag claim-tag--bullet">Bullet: {claim.bulletId}</span>
             )}

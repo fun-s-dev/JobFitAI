@@ -16,8 +16,45 @@ function escapeHtml(str) {
 }
 
 /**
+ * Only http(s) URLs may become links. Anything else (javascript:, data:, ...) is rendered as plain text.
+ * @returns {string|null} the escaped URL, or null when it is not a safe web URL
+ */
+function safeHref(url) {
+  try {
+    const u = new URL(String(url));
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    if (u.username || u.password) return null;
+    return escapeHtml(u.toString());
+  } catch {
+    return null;
+  }
+}
+
+/** `<a>` for a safe URL (opens safely, no referrer), otherwise the plain escaped label. */
+function linkHtml(label, url) {
+  const href = safeHref(url);
+  const text = escapeHtml(label);
+  return href ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>` : text;
+}
+
+function bulletsHtml(bullets, excludedSet) {
+  return (bullets || [])
+    .filter((b) => !excludedSet.has(b.id))
+    .map(
+      (b) =>
+        `<li data-bullet-id="${escapeHtml(b.id)}" id="bullet-${escapeHtml(b.id)}">${escapeHtml(b.text)}</li>`
+    )
+    .join('\n');
+}
+
+/**
  * Renders a ResumeDraft into deterministic, ATS-friendly HTML.
  * Supports surgical bullet omission via excludedBulletIds.
+ *
+ * Optional export-only fields (all copied from the user's own material, see core/resumeExtras.js):
+ *   draft.links           profile links shown under the name
+ *   draft.certifications  certifications / achievements, each with optional links
+ *   draft.education[].grade, draft.projects[].tech / .url
  *
  * @param {object} draft - Validated ResumeDraft
  * @param {object} [options]
@@ -31,18 +68,13 @@ function renderDraftToHtml(draft = {}, { excludedBulletIds = [] } = {}) {
   const experience = Array.isArray(draft.experience) ? draft.experience : [];
   const projects = Array.isArray(draft.projects) ? draft.projects : [];
   const education = Array.isArray(draft.education) ? draft.education : [];
+  const certifications = Array.isArray(draft.certifications) ? draft.certifications : [];
+  const headerLinks = Array.isArray(draft.links) ? draft.links : [];
 
   const experienceHtml = experience
     .map((exp) => {
-      const remainingBullets = (exp.bullets || []).filter((b) => !excludedSet.has(b.id));
-      if (remainingBullets.length === 0) return '';
-
-      const bulletsList = remainingBullets
-        .map(
-          (b) =>
-            `<li data-bullet-id="${escapeHtml(b.id)}" id="bullet-${escapeHtml(b.id)}">${escapeHtml(b.text)}</li>`
-        )
-        .join('\n');
+      const bulletsList = bulletsHtml(exp.bullets, excludedSet);
+      if (!bulletsList) return '';
 
       return `
         <div class="entry" data-entry-id="${escapeHtml(exp.id)}">
@@ -61,20 +93,18 @@ function renderDraftToHtml(draft = {}, { excludedBulletIds = [] } = {}) {
 
   const projectsHtml = projects
     .map((prj) => {
-      const remainingBullets = (prj.bullets || []).filter((b) => !excludedSet.has(b.id));
-      if (remainingBullets.length === 0) return '';
+      const bulletsList = bulletsHtml(prj.bullets, excludedSet);
+      if (!bulletsList) return '';
 
-      const bulletsList = remainingBullets
-        .map(
-          (b) =>
-            `<li data-bullet-id="${escapeHtml(b.id)}" id="bullet-${escapeHtml(b.id)}">${escapeHtml(b.text)}</li>`
-        )
-        .join('\n');
+      const tech = (Array.isArray(prj.tech) ? prj.tech : []).filter((t) => typeof t === 'string' && t.trim());
+      const techHtml = tech.length > 0 ? ` <span class="entry-tech">| ${tech.map(escapeHtml).join(', ')}</span>` : '';
+      const linkPart = prj.url && safeHref(prj.url) ? `<span class="entry-link">${linkHtml('GitHub', prj.url)}</span>` : '';
 
       return `
         <div class="entry" data-entry-id="${escapeHtml(prj.id)}">
           <div class="entry-header">
-            <span class="entry-title"><strong>${escapeHtml(prj.name)}</strong></span>
+            <span class="entry-title"><strong>${escapeHtml(prj.name)}</strong>${techHtml}</span>
+            ${linkPart}
           </div>
           <ul class="bullets">
             ${bulletsList}
@@ -91,14 +121,17 @@ function renderDraftToHtml(draft = {}, { excludedBulletIds = [] } = {}) {
       : '';
 
   const name = typeof draft.name === 'string' ? draft.name.trim() : '';
-  const contact = (Array.isArray(draft.contact) ? draft.contact : [])
-    .filter((c) => typeof c === 'string' && c.trim())
-    .map((c) => escapeHtml(c.trim()));
+  const contactParts = [
+    ...(Array.isArray(draft.contact) ? draft.contact : [])
+      .filter((c) => typeof c === 'string' && c.trim())
+      .map((c) => escapeHtml(c.trim())),
+    ...headerLinks.filter((l) => l && l.label && l.url).map((l) => linkHtml(l.label, l.url)),
+  ];
   const headerHtml =
-    name || contact.length > 0
+    name || contactParts.length > 0
       ? `<header class="resume-header">
     ${name ? `<h1 class="resume-name">${escapeHtml(name)}</h1>` : ''}
-    ${contact.length > 0 ? `<p class="resume-contact">${contact.join(' &nbsp;|&nbsp; ')}</p>` : ''}
+    ${contactParts.length > 0 ? `<p class="resume-contact">${contactParts.join(' &nbsp;|&nbsp; ')}</p>` : ''}
   </header>`
       : '';
 
@@ -110,9 +143,26 @@ function renderDraftToHtml(draft = {}, { excludedBulletIds = [] } = {}) {
           <span class="entry-title"><strong>${escapeHtml(edu.degree)}</strong> — ${escapeHtml(edu.school)}</span>
           <span class="entry-dates">${escapeHtml(edu.dates || '')}</span>
         </div>
+        ${edu.grade ? `<div class="entry-sub">${escapeHtml(edu.grade)}</div>` : ''}
       </div>
     `
     )
+    .join('\n');
+
+  const certificationsHtml = certifications
+    .filter((c) => c && typeof c.text === 'string' && c.text.trim())
+    .map((c) => {
+      const links = (Array.isArray(c.links) ? c.links : [])
+        .filter((l) => l && l.label && l.url)
+        .map((l) => linkHtml(l.label, l.url));
+      // The resume text may already end with the link label (e.g. "[Certificate]"): show the link once
+      let text = escapeHtml(c.text);
+      for (const l of Array.isArray(c.links) ? c.links : []) {
+        const label = escapeHtml(l.label || '');
+        if (label && text.endsWith(label)) text = text.slice(0, -label.length).trimEnd();
+      }
+      return `<li>${text}${links.length > 0 ? ` ${links.join(' ')}` : ''}</li>`;
+    })
     .join('\n');
 
   return `<!DOCTYPE html>
@@ -121,7 +171,7 @@ function renderDraftToHtml(draft = {}, { excludedBulletIds = [] } = {}) {
   <meta charset="UTF-8">
   <title>${name ? `${escapeHtml(name)} - Resume` : 'Resume'}</title>
   <style>
-    @page { size: A4; margin: 20mm 15mm; }
+    @page { size: A4; margin: 18mm 15mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -132,25 +182,30 @@ function renderDraftToHtml(draft = {}, { excludedBulletIds = [] } = {}) {
       padding: 0;
       margin: 0;
     }
+    a { color: #1a4fa0; text-decoration: none; }
     h2 {
-      font-size: 12pt;
+      font-size: 11.5pt;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.6px;
       border-bottom: 1px solid #333;
       padding-bottom: 2px;
-      margin-top: 14px;
+      margin-top: 13px;
       margin-bottom: 6px;
     }
     .summary-text { margin-bottom: 8px; }
-    .entry { margin-bottom: 8px; }
-    .entry-header { display: flex; justify-content: space-between; margin-bottom: 2px; }
+    .entry { margin-bottom: 8px; page-break-inside: avoid; }
+    .entry-header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px; }
     .entry-title { font-size: 10.5pt; }
-    .entry-dates { font-size: 10pt; color: #555; }
+    .entry-tech { font-style: italic; color: #333; }
+    .entry-dates, .entry-link { font-size: 10pt; color: #555; white-space: nowrap; }
+    .entry-sub { font-size: 10pt; color: #333; }
     .bullets { margin-left: 20px; margin-top: 3px; }
     .bullets li { margin-bottom: 3px; }
+    .cert-list { margin-left: 20px; }
+    .cert-list li { margin-bottom: 3px; }
     .skills-list { font-size: 10pt; line-height: 1.5; }
     .resume-header { text-align: center; margin-bottom: 6px; }
-    .resume-name { font-size: 18pt; letter-spacing: 0.5px; }
+    .resume-name { font-size: 19pt; letter-spacing: 0.6px; }
     .resume-contact { font-size: 10pt; color: #333; margin-top: 2px; }
     @media screen {
       body { max-width: 210mm; margin: 24px auto; padding: 20mm 15mm; box-shadow: 0 0 8px rgba(0,0,0,0.15); }
@@ -164,11 +219,13 @@ function renderDraftToHtml(draft = {}, { excludedBulletIds = [] } = {}) {
   ${projectsHtml ? `<section class="section"><h2>Projects</h2>${projectsHtml}</section>` : ''}
   ${skillsHtml ? `<section class="section"><h2>Technical Skills</h2>${skillsHtml}</section>` : ''}
   ${educationHtml ? `<section class="section"><h2>Education</h2>${educationHtml}</section>` : ''}
+  ${certificationsHtml ? `<section class="section"><h2>Certifications &amp; Achievements</h2><ul class="cert-list">${certificationsHtml}</ul></section>` : ''}
 </body>
 </html>`;
 }
 
 module.exports = {
   escapeHtml,
+  safeHref,
   renderDraftToHtml,
 };

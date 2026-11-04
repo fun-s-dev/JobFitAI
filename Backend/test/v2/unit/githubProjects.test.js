@@ -86,7 +86,7 @@ describe('core/githubProjects (pure)', () => {
 
     it('caps the number of README passages', () => {
       const many = Array.from({ length: 20 }, (_, i) => ({ chunk: chunk(`readme_chunk_${i}`, 'readme'), vector: [1, 0, 0] }));
-      const pack = selectEvidencePack({ requirements, requirementVectors, chunkItems: many, perRequirement: 20, maxReadmeChunks: 4 });
+      const pack = selectEvidencePack({ requirements, requirementVectors, chunkItems: many, perRequirement: 20, maxReadmeChunks: 4, minReadmeChunks: 2 });
       expect(pack.filter((c) => c.source === 'readme')).toHaveLength(4);
     });
 
@@ -199,6 +199,145 @@ describe('core/githubProjects (pure)', () => {
       const { exportDraft: out, excludedItems } = applyGithubProjectRules({ draft: plain, exportDraft: exp, links: [] });
       expect(out.projects).toEqual(exp.projects);
       expect(excludedItems).toEqual([]);
+    });
+  });
+});
+
+describe('core/githubProjects: tech stack, repository links and project naming rules', () => {
+  const {
+    deriveTechStack,
+    githubRepoUrl,
+    repoFullNameFromUrl,
+    applyGithubProjectRules: applyRules,
+  } = require('../../../src/v2/core/githubProjects');
+
+  describe('deriveTechStack', () => {
+    const analysis = {
+      languages: { JavaScript: 9000, HTML: 5000, SCSS: 100 },
+      dependencies: [
+        { name: 'express', skills: ['Express'] },
+        { name: 'mongoose', skills: ['Mongoose', 'MongoDB'] },
+        { name: 'bcryptjs', skills: ['Password Hashing'] },
+        { name: 'jsonwebtoken', skills: ['JWT Authentication'] },
+      ],
+      evidenceItems: [
+        { skill: 'REST APIs', strength: 0.8 },
+        { skill: 'Unit Testing', strength: 0.5 },
+        { skill: 'Redis', strength: 0.9, contradiction: true }, // the README claims it, the code does not
+        { skill: 'Faint', strength: 0.2 },
+      ],
+    };
+
+    it('starts with the main programming language and puts frameworks before capabilities', () => {
+      const tech = deriveTechStack(analysis);
+      expect(tech[0]).toBe('JavaScript'); // not HTML, even though it has bytes
+      expect(tech.slice(0, 4)).toEqual(['JavaScript', 'Express', 'Mongoose', 'MongoDB']);
+      expect(tech.indexOf('Password Hashing')).toBeGreaterThan(tech.indexOf('REST APIs'));
+    });
+
+    it('never includes contradicted or weak evidence, and has no duplicates', () => {
+      const tech = deriveTechStack({ ...analysis, dependencies: [{ skills: ['express', 'Express'] }] });
+      expect(tech).not.toContain('Redis');
+      expect(tech).not.toContain('Faint');
+      expect(new Set(tech.map((t) => t.toLowerCase())).size).toBe(tech.length);
+    });
+
+    it('caps the list and copes with a repository without any evidence', () => {
+      expect(deriveTechStack(analysis, { max: 3 })).toHaveLength(3);
+      expect(deriveTechStack({})).toEqual([]);
+      expect(deriveTechStack(undefined)).toEqual([]);
+    });
+  });
+
+  describe('repository links', () => {
+    it('builds a github.com URL only for a valid owner/repo', () => {
+      expect(githubRepoUrl('fun-s-dev/JobFitAI')).toBe('https://github.com/fun-s-dev/JobFitAI');
+      expect(githubRepoUrl('a/b/c')).toBeNull();
+      expect(githubRepoUrl('javascript:alert(1)')).toBeNull();
+      expect(githubRepoUrl('')).toBeNull();
+    });
+
+    it('reads owner/repo back from a repository URL', () => {
+      expect(repoFullNameFromUrl('https://github.com/fun-s-dev/JobFitAI')).toBe('fun-s-dev/JobFitAI');
+      expect(repoFullNameFromUrl('https://github.com/fun-s-dev/JobFitAI.git')).toBe('fun-s-dev/JobFitAI');
+      expect(repoFullNameFromUrl('https://evil.example/fun-s-dev/JobFitAI')).toBe('');
+      expect(repoFullNameFromUrl('garbage')).toBe('');
+    });
+  });
+
+  describe('renaming a project (regression: a custom name was ignored in the printed resume)', () => {
+    const verifiedLink = (extra = {}) => ({
+      analysisId: 'a1',
+      repoUrl: 'https://github.com/me/Banking-System-backend',
+      control: { verified: true },
+      ...extra,
+    });
+    const draft = {
+      projects: [
+        { id: 'prj0', name: 'Backend Ledger', tech: ['Node.js', 'MongoDB'] },
+        { id: 'prj1', name: 'Meri Sakhi' },
+      ],
+    };
+    const exportDraft = {
+      projects: [
+        { id: 'prj0', name: 'Backend Ledger', bullets: [{ id: 'prj0.b0', text: 'x' }] },
+        { id: 'prj1', name: 'Meri Sakhi', bullets: [{ id: 'prj1.b0', text: 'y' }] },
+      ],
+    };
+
+    it('applies the chosen name to a RESUME project that the repository was assigned to, and links the repository', () => {
+      const { exportDraft: out } = applyRules({
+        draft,
+        exportDraft,
+        links: [verifiedLink({ projectName: 'Backend Ledger', displayName: 'Ledger Pro' })],
+      });
+      expect(out.projects[0]).toMatchObject({ id: 'prj0', name: 'Ledger Pro', url: 'https://github.com/me/Banking-System-backend' });
+      expect(out.projects[0].tech).toEqual(['Node.js', 'MongoDB']);
+      expect(out.projects[1].name).toBe('Meri Sakhi'); // the other project is untouched
+      expect(out.projects[1].url).toBeUndefined();
+    });
+
+    it('also works when the repository is tied to the project only by matching name', () => {
+      const { exportDraft: out } = applyRules({
+        draft: { projects: [{ id: 'prj0', name: 'Banking System Backend' }] },
+        exportDraft: { projects: [{ id: 'prj0', name: 'Banking System Backend', bullets: [{ id: 'b', text: 't' }] }] },
+        links: [verifiedLink({ displayName: 'Ledger Pro' })],
+      });
+      expect(out.projects[0].name).toBe('Ledger Pro');
+    });
+
+    it('keeps the project name when no display name was set, but still links the repository', () => {
+      const { exportDraft: out } = applyRules({ draft, exportDraft, links: [verifiedLink({ projectName: 'Backend Ledger' })] });
+      expect(out.projects[0].name).toBe('Backend Ledger');
+      expect(out.projects[0].url).toBe('https://github.com/me/Banking-System-backend');
+    });
+
+    it('does not use a repository that is not a verified link for naming or linking', () => {
+      const { exportDraft: out } = applyRules({
+        draft,
+        exportDraft,
+        links: [verifiedLink({ projectName: 'Backend Ledger', displayName: 'Ledger Pro', control: { verified: false } })],
+      });
+      expect(out.projects[0].name).toBe('Backend Ledger');
+      expect(out.projects[0].url).toBeUndefined();
+    });
+
+    it('does not rename a project through a link that was assigned to a project that no longer exists', () => {
+      const { exportDraft: out } = applyRules({
+        draft,
+        exportDraft,
+        links: [verifiedLink({ projectName: 'Deleted Project', displayName: 'Ledger Pro' })],
+      });
+      expect(out.projects.map((p) => p.name)).toEqual(['Backend Ledger', 'Meri Sakhi']);
+    });
+
+    it('links a GitHub-written project to its repository', () => {
+      const { exportDraft: out } = applyRules({
+        draft: { projects: [{ id: 'prj0', name: 'X', source: 'github', analysisId: 'a1', repoFullName: 'me/x-repo', tech: ['Node.js'] }] },
+        exportDraft: { projects: [{ id: 'prj0', name: 'X', bullets: [{ id: 'b', text: 't' }] }] },
+        links: [{ analysisId: 'a1', authorshipConfirmedAt: new Date(), control: { verified: true } }],
+      });
+      expect(out.projects[0]).toMatchObject({ url: 'https://github.com/me/x-repo', tech: ['Node.js'] });
     });
   });
 });

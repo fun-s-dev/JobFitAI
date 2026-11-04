@@ -9,10 +9,6 @@ import {
 import { useJob } from '../hooks/useJob';
 import { getApiErrorMessage } from '../../../services/apiError';
 
-const noteStyle = { fontSize: '0.85rem', color: '#9aa4b2', margin: '0.5rem 0' };
-const errorStyle = { color: '#ff6b6b', fontSize: '0.9rem', margin: '0.5rem 0' };
-const okStyle = { color: '#34d399', margin: '0.75rem 0' };
-
 // The server bands the score (raw scores are small on this embedding model, so a percentage would mislead)
 const LEVEL_LABEL = { strong: 'Strong match', partial: 'Partial match', weak: 'Weak match' };
 
@@ -111,82 +107,104 @@ export default function ProjectRankingPanel({ reportId, onSelectionConfirmed }) 
   const skipped = (ranking?.repos || []).filter((r) => r.status !== 'ranked');
 
   return (
-    <section aria-label='Best projects for this job' data-testid='project-ranking' style={{ margin: '1.5rem 0' }}>
-      <h3 className='github-link-form__title'>Best projects for this job</h3>
-      <p style={noteStyle}>
-        Your public repositories are compared with what this job asks for. Only repositories with a README are
-        considered. Choose up to {topN} to use as your projects.
-      </p>
-
-      <button type='button' className='button primary-button' onClick={handleStart} disabled={isRunning}>
-        {isRunning ? 'Analysing your repositories…' : ranking ? 'Rank again' : 'Find my best projects for this job'}
-      </button>
+    <section aria-label='Best projects for this job' data-testid='project-ranking' className='ranking'>
+      <div className='vp-panel__head'>
+        <div>
+          <h3 className='vp-panel__sub'>Best projects for this job</h3>
+          <p className='vp-panel__desc'>
+            Your public repositories are compared with what this job asks for. Only repositories with a README are
+            considered. Choose up to {topN} to use as your projects.
+          </p>
+        </div>
+        <button type='button' className='vp-btn vp-btn--primary' onClick={handleStart} disabled={isRunning}>
+          {isRunning && <span className='vp-spinner' aria-hidden='true' />}
+          {isRunning ? 'Analysing your repositories…' : ranking ? 'Rank again' : 'Find my best projects for this job'}
+        </button>
+      </div>
 
       {job.isRunning && (
-        <p role='status' style={noteStyle}>
-          {job.totalCount > 0 && job.doneCount >= job.totalCount
-            ? 'Comparing your repositories with the job. On the free Gemini tier this can take a few minutes; keep this page open.'
-            : job.totalCount > 0
-            ? `Analysed ${job.doneCount} of ${job.totalCount} repositories…`
-            : 'Starting…'}
-        </p>
+        <div className='vp-alert vp-alert--info' role='status'>
+          <span className='vp-alert__icon' aria-hidden='true'>⏳</span>
+          <span className='vp-alert__body'>
+            {job.totalCount > 0 && job.doneCount >= job.totalCount
+              ? 'Comparing your repositories with the job. On the free Gemini tier this can take a few minutes; keep this page open.'
+              : job.totalCount > 0
+              ? `Analysed ${job.doneCount} of ${job.totalCount} repositories…`
+              : 'Starting…'}
+          </span>
+        </div>
       )}
 
       {error && (
-        <p role='alert' style={errorStyle}>
-          {error}
-        </p>
+        <div className='vp-alert vp-alert--error' role='alert'>
+          <span className='vp-alert__icon' aria-hidden='true'>⚠</span>
+          <span className='vp-alert__body'>{error}</span>
+        </div>
       )}
 
       {ranking && (
-        <div style={{ marginTop: '1rem' }}>
-          <details>
+        <>
+          <details className='vp-details'>
             <summary>What this job asks for ({ranking.requirements.length})</summary>
-            <ul>
-              {ranking.requirements.map((r) => (
-                <li key={r.text}>
-                  {r.text} <small>({r.importance === 'must' ? 'required' : 'nice to have'})</small>
-                </li>
-              ))}
-            </ul>
+            <div className='vp-details__body'>
+              <div className='req-chips'>
+                {ranking.requirements.map((r) => (
+                  <span key={r.text} className={`req-chip${r.importance === 'must' ? ' req-chip--must' : ''}`}>
+                    {r.text} <small>({r.importance === 'must' ? 'required' : 'nice to have'})</small>
+                  </span>
+                ))}
+              </div>
+            </div>
           </details>
 
           {ranked.length === 0 && (
-            <p style={noteStyle}>None of your repositories could be ranked. See the skipped list below.</p>
+            <p className='vp-panel__desc'>None of your repositories could be ranked. See the skipped list below.</p>
           )}
 
-          <ol style={{ listStyle: 'none', padding: 0 }} aria-label='Ranked repositories'>
+          <ol className='rank-list' aria-label='Ranked repositories'>
             {ranked.map((repo) => {
               const checked = selected.includes(repo.repoId);
               const limitReached = !checked && selected.length >= topN;
               return (
-                <li key={repo.repoId} style={{ margin: '0.9rem 0' }} data-testid={`ranked-${repo.repoId}`}>
-                  <label style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
+                <li
+                  key={repo.repoId}
+                  className={`rank-card${checked ? ' rank-card--selected' : ''}`}
+                  data-testid={`ranked-${repo.repoId}`}
+                >
+                  <label className='rank-card__top'>
+                    <span className='rank-card__rank' aria-hidden='true'>#{repo.rank}</span>
+                    <span className='rank-card__main'>
+                      <span className='rank-card__name'>
+                        <span className='sr-only'>#{repo.rank} </span>
+                        {repo.fullName}
+                      </span>
+                      {repo.description && <span className='rank-card__desc'>{repo.description}</span>}
+                    </span>
+                    <span
+                      className={`match-pill match-pill--${repo.level || 'weak'}`}
+                      data-testid={`level-${repo.repoId}`}
+                    >
+                      {LEVEL_LABEL[repo.level] || 'Match'}
+                    </span>
                     <input
                       type='checkbox'
+                      className='vp-check'
                       checked={checked}
                       disabled={limitReached || isConfirming}
                       onChange={() => toggle(repo.repoId)}
                       aria-label={`Use ${repo.fullName}`}
                     />
-                    <span>
-                      <strong>
-                        #{repo.rank} {repo.fullName}
-                      </strong>{' '}
-                      <small data-testid={`level-${repo.repoId}`}>{LEVEL_LABEL[repo.level] || 'Match'}</small>
-                      {repo.description && <div style={noteStyle}>{repo.description}</div>}
-                    </span>
                   </label>
                   {repo.matched.length > 0 ? (
-                    <ul style={{ margin: '0.25rem 0 0 2rem', fontSize: '0.85rem' }}>
+                    <ul className='rank-card__reasons'>
                       {repo.matched.map((m) => (
-                        <li key={m.requirement}>
-                          <span style={{ color: '#9aa4b2' }}>{m.requirement}:</span> “{m.snippet}”
+                        <li key={m.requirement} className='rank-card__reason'>
+                          <span className='rank-card__reason-req'>{m.requirement}</span>“{m.snippet}”
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p style={{ ...noteStyle, marginLeft: '2rem' }}>No passage in this repository matched the job closely.</p>
+                    <p className='rank-card__none'>No passage in this repository matched the job closely.</p>
                   )}
                 </li>
               );
@@ -194,35 +212,39 @@ export default function ProjectRankingPanel({ reportId, onSelectionConfirmed }) 
           </ol>
 
           {ranked.length > 0 && (
-            <button
-              type='button'
-              className='button primary-button'
-              onClick={handleConfirm}
-              disabled={selected.length === 0 || isConfirming}
-            >
-              {isConfirming ? 'Saving…' : `Use ${selected.length} selected project${selected.length === 1 ? '' : 's'}`}
-            </button>
+            <div>
+              <button
+                type='button'
+                className='vp-btn vp-btn--primary'
+                onClick={handleConfirm}
+                disabled={selected.length === 0 || isConfirming}
+              >
+                {isConfirming ? 'Saving…' : `Use ${selected.length} selected project${selected.length === 1 ? '' : 's'}`}
+              </button>
+            </div>
           )}
 
           {confirmedNotice && (
-            <p role='status' style={okStyle} data-testid='ranking-confirmed'>
-              ✓ {confirmedNotice}
-            </p>
+            <div className='vp-alert vp-alert--success' role='status' data-testid='ranking-confirmed'>
+              <span className='vp-alert__icon' aria-hidden='true'>✓</span>
+              <span className='vp-alert__body'>{confirmedNotice}</span>
+            </div>
           )}
 
           {skipped.length > 0 && (
-            <div style={{ marginTop: '1rem' }} data-testid='skipped-repos'>
-              <h4 style={{ margin: '0 0 0.25rem 0' }}>Skipped</h4>
-              <ul style={{ margin: 0 }}>
+            <div data-testid='skipped-repos'>
+              <h4 className='vp-panel__sub' style={{ marginBottom: '0.5rem' }}>Skipped</h4>
+              <ul className='skip-list'>
                 {skipped.map((repo) => (
-                  <li key={repo.repoId} style={{ color: '#e0a458', fontSize: '0.9rem' }}>
-                    {repo.skipReason}
+                  <li key={repo.repoId}>
+                    <span aria-hidden='true'>⚠</span>
+                    <span>{repo.skipReason}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-        </div>
+        </>
       )}
     </section>
   );

@@ -29,6 +29,7 @@ const projectEntrySchema = new mongoose.Schema(
     source: { type: String, enum: ['resume', 'github'], default: undefined },
     analysisId: { type: mongoose.Schema.Types.ObjectId, ref: 'GithubAnalysis', default: undefined },
     repoFullName: { type: String, default: undefined },
+    tech: [{ type: String }],
   },
   { _id: false }
 );

@@ -208,9 +208,14 @@ function groundDraftSections(draft = {}, evidenceTexts = [], { aliasMap = defaul
       });
     }
   }
+  // 6. Projects: the name is only warned about (GitHub projects take their name from the repository, which
+  // the user can rename). The technology list is kept item by item: a resume project's technologies must
+  // appear in the user's evidence; a GitHub project's come from the repository's own code evidence.
+  const projectTech = {};
   for (const prj of Array.isArray(draft.projects) ? draft.projects : []) {
     if (!prj || !prj.id) continue;
-    if (prj.name && !isTextGrounded(index, prj.name, 0.5)) {
+    const isGithub = prj.source === 'github';
+    if (!isGithub && prj.name && !isTextGrounded(index, prj.name, 0.5)) {
       warnings.push({
         section: 'projects',
         entryId: prj.id,
@@ -218,9 +223,28 @@ function groundDraftSections(draft = {}, evidenceTexts = [], { aliasMap = defaul
         reason: 'Project name not found in your resume. Check it before sending.',
       });
     }
+    const tech = Array.isArray(prj.tech) ? prj.tech.filter((t) => typeof t === 'string' && t.trim()) : [];
+    if (tech.length === 0) continue;
+    if (isGithub) {
+      projectTech[prj.id] = tech;
+      continue;
+    }
+    const kept = [];
+    for (const t of tech) {
+      if (isSkillGrounded(t, index, aliasMap, reverseAliases)) {
+        kept.push(t);
+      } else {
+        excludedItems.push({
+          section: 'projects',
+          text: `${prj.name}: ${t}`,
+          reason: 'Technology not found in your resume or self-description.',
+        });
+      }
+    }
+    projectTech[prj.id] = kept;
   }
 
-  return { header, skills, educationIds, excludedItems, warnings };
+  return { header, skills, educationIds, excludedItems, warnings, projectTech };
 }
 
 module.exports = {

@@ -349,6 +349,9 @@ function createGithubController({
       const nameById = new Map(analyses.map((a) => [String(a._id), a]));
       const { hasDraft, projects } = await latestDraftProjects(reportId, userId);
       const selected = await selectedAnalysisIds(reportId, userId);
+      const githubInDraft = new Set(
+        projects.filter((p) => p && p.source === 'github' && p.analysisId).map((p) => String(p.analysisId))
+      );
 
       const rows = links.map((link) => {
         const analysis = nameById.get(String(link.analysisId));
@@ -368,6 +371,7 @@ function createGithubController({
           matchSource: source,
           // GitHub project settings (a selected repository becomes a project in the draft)
           selected: selected.has(String(link.analysisId)),
+          inDraft: githubInDraft.has(String(link.analysisId)),
           displayName: link.displayName || null,
           defaultName: defaultProjectName(repositoryFullName),
           authorshipConfirmed: Boolean(link.authorshipConfirmedAt),
@@ -375,10 +379,14 @@ function createGithubController({
       });
 
       res.set('Cache-Control', 'no-store');
+      // The user chose GitHub projects but the saved draft was made before that (or without them)
+      const draftOutdated = hasDraft && selected.size > 0 && ![...selected].some((id) => githubInDraft.has(id));
+
       return res.status(200).json({
         links: rows,
         draftProjects: projects.map((p) => p.name),
         hasDraft,
+        draftOutdated,
         requestId: requestIdOf(req),
       });
     } catch (err) {

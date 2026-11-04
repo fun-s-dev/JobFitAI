@@ -91,6 +91,10 @@ describe('GitHub projects: draft -> verify -> export', () => {
     agent.patch(`/api/v2/github/links/${analysisId}/details`).send({ reportId: String(report._id), ...body });
 
   beforeAll(async () => {
+    // Many drafts are created in this file; the per-user rate limits have their own tests
+    process.env.RATE_LIMIT_DRAFT_MAX = '1000';
+    process.env.RATE_LIMIT_VERIFY_MAX = '1000';
+    process.env.RATE_LIMIT_GITHUB_CONNECT_MAX = '1000';
     kit = await setupTestKit();
     ReportProjectLink = require('../../../src/v2/models/reportProjectLink.model');
     GithubAnalysis = require('../../../src/v2/models/githubAnalysis');
@@ -143,6 +147,9 @@ describe('GitHub projects: draft -> verify -> export', () => {
     controllers.draft.setProjectDraftService(null);
     controllers.verification.setVerificationService(null);
     controllers.verification.setVerificationSyncMode(false);
+    delete process.env.RATE_LIMIT_DRAFT_MAX;
+    delete process.env.RATE_LIMIT_VERIFY_MAX;
+    delete process.env.RATE_LIMIT_GITHUB_CONNECT_MAX;
     await teardownTestKit();
   });
 
@@ -158,6 +165,8 @@ describe('GitHub projects: draft -> verify -> export', () => {
       kit.mongoose.connection.collection('resumeclaims').deleteMany({}),
     ]);
     controllers.draft.setProjectDraftService(buildRealProjectService());
+    // Some tests swap the draft service; every test starts from the default one
+    controllers.draft.setDraftService({ generateDraft: async () => JSON.parse(JSON.stringify(resumeProjectDraft)) });
     report = await InterviewReport.create({
       user: kit.userA.id,
       title: 'Backend Engineer',
@@ -298,6 +307,210 @@ describe('GitHub projects: draft -> verify -> export', () => {
       const claim = res.body.claims.find((c) => c.bulletId === 'prj0.b0');
       expect(claim.status).toBe('rejected');
       expect(claim.resumeEvidence).toEqual([]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------------------------
+  describe('renaming a RESUME project through its repository (regression: the custom name was ignored)', () => {
+    beforeEach(async () => {
+      await InterviewReport.updateOne(
+        { _id: report._id },
+        { $set: { resume: 'Riley Tester. Backend Ledger. Node.js, Express.js, MongoDB. Built a banking backend with ledger transfers.' } }
+      );
+      // A draft written from the resume (no GitHub projects), as before the GitHub flow existed
+      controllers.draft.setDraftService({
+        generateDraft: async () => ({
+          name: 'Riley Tester',
+          contact: [],
+          summary: '',
+          experience: [],
+          projects: [
+            {
+              id: 'prj0',
+              name: 'Backend Ledger',
+              tech: ['Node.js', 'MongoDB', 'Kubernetes'],
+              bullets: [{ id: 'prj0.b0', text: 'Built a banking backend with ledger transfers.' }],
+            },
+          ],
+          skills: [],
+          education: [],
+        }),
+      });
+      analysis = await GithubAnalysis.create({
+        repositoryUrl: 'https://github.com/alice-gh/Banking-System-backend',
+        repositoryFullName: 'alice-gh/Banking-System-backend',
+        commitSha: 'sha9',
+        readmeChecked: true,
+        analysisStatus: 'complete',
+      });
+      await ReportProjectLink.create({
+        report: report._id,
+        user: kit.userA.id,
+        analysisId: analysis._id,
+        repoUrl: analysis.repositoryUrl,
+        projectName: 'Backend Ledger', // "Belongs to project": how the repository was tied to the resume project
+        control: { verified: true, method: 'github_app_identity', githubLogin: 'alice-gh' },
+      });
+      await createDraft();
+      await verify();
+    });
+
+    it('prints the name the user chose, with the project’s tech and a link to the repository', async () => {
+      const set = await details({ displayName: 'Ledger Pro' });
+      expect(set.status).toBe(200);
+
+      const html = (await printHtml()).text;
+      expect(html).toContain('<strong>Ledger Pro</strong>');
+      expect(html).not.toContain('<strong>Backend Ledger</strong>');
+      expect(html).toContain('| Node.js, MongoDB</span>'); // tech from the heading, minus what the resume never mentioned
+      expect(html).not.toContain('Kubernetes');
+      expect(html).toContain('href="https://github.com/alice-gh/Banking-System-backend"');
+    });
+
+    it('does not ask the user to confirm authorship of a project that came from their own resume', async () => {
+      await details({ displayName: 'Ledger Pro' });
+      const info = (await groundedInfo()).body;
+      expect(info.excludedItems.some((i) => /Confirm that you built/.test(i.reason || ''))).toBe(false);
+      expect((await printHtml()).text).toContain('Built a banking backend with ledger transfers.');
+    });
+
+    it('lists the technology the resume does not support as an excluded item', async () => {
+      const info = (await groundedInfo()).body;
+      expect(info.excludedItems).toContainEqual({
+        section: 'projects',
+        text: 'Backend Ledger: Kubernetes',
+        reason: 'Technology not found in your resume or self-description.',
+      });
+    });
+
+    it('can name a resume project even though the repository was never selected as a GitHub project', async () => {
+      const links = (await kit.agentA.get(`/api/v2/github/links/${report._id}`)).body.links;
+      expect(links[0]).toMatchObject({ selected: false, matchedProject: 'Backend Ledger' });
+      const res = await details({ displayName: 'Ledger Pro' });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  // ---------------------------------------------------------------------------------------------
+  describe('links, certifications and CGPA from the resume appear in the export', () => {
+    const { extractResumeExtras } = require('../../../src/v2/core/resumeExtras');
+    const LINKED = [
+      'Riley Tester',
+      '+1 555 0100 | riley@example.com | [LinkedIn](https://www.linkedin.com/in/riley-test) | [GitHub](https://github.com/riley-test)',
+      'Education',
+      'Sample University, Mumbai September 2024 – Present',
+      'B. Tech in Computer Science CGPA:9.20(till sem IV)',
+      'Certifications and Achievements',
+      '- Completed Python for Data Science by NPTEL [[Certificate]](https://nptel.ac.in/cert/123).',
+      '- Solved 200+ problems on Codeforces and LeetCode.',
+      '<script>alert(1)</script> [Evil](javascript:alert(2))',
+    ].join('\n');
+
+    beforeEach(async () => {
+      await InterviewReport.updateOne(
+        { _id: report._id },
+        {
+          $set: {
+            resume: 'Riley Tester +1 555 0100 riley@example.com LinkedIn GitHub Sample University B. Tech in Computer Science',
+            resumeExtras: extractResumeExtras(LINKED),
+          },
+        }
+      );
+      controllers.draft.setDraftService({
+        generateDraft: async () => ({
+          name: 'Riley Tester',
+          contact: ['+1 555 0100', 'riley@example.com', 'LinkedIn', 'GitHub'],
+          summary: '',
+          experience: [],
+          projects: [],
+          skills: [],
+          education: [{ id: 'edu0', school: 'Sample University', degree: 'B. Tech in Computer Science', dates: '' }],
+        }),
+      });
+      await createDraft();
+      await verify();
+    });
+
+    it('prints the profile links as hyperlinks in the header, once each', async () => {
+      const html = (await printHtml()).text;
+      expect(html).toContain('<a href="https://www.linkedin.com/in/riley-test" target="_blank" rel="noopener noreferrer">LinkedIn</a>');
+      expect(html).toContain('<a href="https://github.com/riley-test"');
+      expect(html.match(/>LinkedIn</g)).toHaveLength(1); // the bare "LinkedIn" contact entry was replaced by the link
+    });
+
+    it('prints the certifications and achievements exactly as written, with the certificate link', async () => {
+      const html = (await printHtml()).text;
+      expect(html).toContain('<h2>Certifications &amp; Achievements</h2>');
+      expect(html).toContain('Completed Python for Data Science by NPTEL');
+      expect(html).toContain('href="https://nptel.ac.in/cert/123"');
+      expect(html).toContain('Solved 200+ problems on Codeforces and LeetCode.');
+    });
+
+    it('prints the CGPA under the education entry', async () => {
+      expect((await printHtml()).text).toContain('<div class="entry-sub">CGPA: 9.20 (till sem IV)</div>');
+    });
+
+    it('never renders script tags or non-web links taken from the resume text', async () => {
+      const html = (await printHtml()).text;
+      expect(html).not.toContain('<script>alert');
+      expect(html).not.toMatch(/href="javascript:/i);
+    });
+
+    it('also works for resumes uploaded before this feature (no stored extras): nothing is added, nothing breaks', async () => {
+      await InterviewReport.updateOne({ _id: report._id }, { $unset: { resumeExtras: 1 } });
+      const res = await printHtml();
+      expect(res.status).toBe(200);
+      expect(res.text).not.toContain('<h2>Certifications');
+      expect(res.text).not.toContain('href="https://www.linkedin.com');
+    });
+  });
+
+  // ---------------------------------------------------------------------------------------------
+  describe('an out-of-date draft is flagged', () => {
+    it('says the draft does not use the selected GitHub projects, until the draft is generated again', async () => {
+      await seedSelection();
+      // a draft made before the GitHub projects were chosen
+      controllers.draft.setProjectDraftService({ buildGithubProjects: async () => ({ configured: false, projects: [], skipped: [] }) });
+      await createDraft();
+
+      let body = (await kit.agentA.get(`/api/v2/github/links/${report._id}`)).body;
+      expect(body.hasDraft).toBe(true);
+      expect(body.draftOutdated).toBe(true);
+      expect(body.links[0]).toMatchObject({ selected: true, inDraft: false });
+
+      controllers.draft.setProjectDraftService(buildRealProjectService());
+      await createDraft();
+      body = (await kit.agentA.get(`/api/v2/github/links/${report._id}`)).body;
+      expect(body.draftOutdated).toBe(false);
+      expect(body.links[0]).toMatchObject({ selected: true, inDraft: true });
+    });
+
+    it('is not flagged when no GitHub projects were chosen, or when there is no draft yet', async () => {
+      let body = (await kit.agentA.get(`/api/v2/github/links/${report._id}`)).body;
+      expect(body.draftOutdated).toBe(false);
+
+      await seedSelection();
+      body = (await kit.agentA.get(`/api/v2/github/links/${report._id}`)).body;
+      expect(body.hasDraft).toBe(false);
+      expect(body.draftOutdated).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------------------------
+  describe('GitHub project export details', () => {
+    it('prints a GitHub project with its tech stack from the repository and a link to it', async () => {
+      await seedSelection();
+      await GithubAnalysis.updateOne(
+        { _id: analysis._id },
+        { $set: { languages: { JavaScript: 900, HTML: 100 }, dependencies: [{ name: 'express', ecosystem: 'npm', skills: ['Express'] }, { name: 'mongoose', ecosystem: 'npm', skills: ['Mongoose', 'MongoDB'] }] } }
+      );
+      await createDraft();
+      await verify();
+      await details({ authorshipConfirmed: true, displayName: 'Backend Ledger' });
+
+      const html = (await printHtml()).text;
+      expect(html).toContain('<strong>Backend Ledger</strong> <span class="entry-tech">| JavaScript, Express, Mongoose, MongoDB</span>');
+      expect(html).toContain('href="https://github.com/alice-gh/Banking-System-backend"');
     });
   });
 

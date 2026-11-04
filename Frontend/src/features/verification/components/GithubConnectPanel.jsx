@@ -12,10 +12,6 @@ import { useJob } from '../hooks/useJob';
 import { isGithubAuthorizeUrl } from '../utils/githubConnectMessages';
 import { getApiErrorMessage } from '../../../services/apiError';
 
-const sectionStyle = { marginBottom: '1.5rem' };
-const noteStyle = { fontSize: '0.85rem', color: '#9aa4b2', margin: '0.5rem 0' };
-const errorStyle = { color: '#ff6b6b', fontSize: '0.9rem', margin: '0.5rem 0' };
-
 /**
  * GitHub evidence: "Connect GitHub" (GitHub App user authorization) + repository selection.
  *
@@ -124,135 +120,169 @@ export default function GithubConnectPanel({
   const reposError = reposQuery.isError ? getApiErrorMessage(reposQuery.error, 'Could not load your repositories.') : null;
 
   return (
-    <section className="github-connect-panel" aria-label="GitHub repository evidence" style={sectionStyle}>
-      <h3 className="github-link-form__title">GitHub repository evidence</h3>
-      <p style={noteStyle}>
+    <section className="connect-section" aria-label="GitHub repository evidence">
+      <p className="vp-panel__desc">
         Connecting GitHub shows that you <strong>control</strong> a repository. It does not prove that you
         wrote the code in it. Repositories are read without executing any code.
       </p>
 
-      {connectionQuery.isLoading && <p style={noteStyle}>Checking GitHub connection…</p>}
+      {connectionQuery.isLoading && <p className="vp-panel__desc">Checking GitHub connection…</p>}
       {connectionQuery.isError && (
-        <p role="alert" style={errorStyle}>
-          {getApiErrorMessage(connectionQuery.error, 'Could not check the GitHub connection.')}
-        </p>
+        <div className="vp-alert vp-alert--error" role="alert">
+          <span className="vp-alert__icon" aria-hidden="true">⚠</span>
+          <span className="vp-alert__body">
+            {getApiErrorMessage(connectionQuery.error, 'Could not check the GitHub connection.')}
+          </span>
+        </div>
       )}
 
       {connection && connection.configured === false && (
-        <p style={noteStyle}>
-          GitHub Connect is not set up on this server, so repositories cannot be added as evidence. Your
-          resume alone is used for verification.
-        </p>
+        <div className="vp-alert vp-alert--info">
+          <span className="vp-alert__icon" aria-hidden="true">ℹ</span>
+          <span className="vp-alert__body">
+            GitHub Connect is not set up on this server, so repositories cannot be added as evidence. Your
+            resume alone is used for verification.
+          </span>
+        </div>
       )}
 
       {connection && connection.configured && !isConnected && (
-        <div>
-          {connection.needsReconnect && (
-            <p role="alert" style={errorStyle}>
-              Your GitHub connection expired or was revoked. Please connect again.
+        <div className="connect-card">
+          <div>
+            {connection.needsReconnect && (
+              <div className="vp-alert vp-alert--error" role="alert" style={{ marginBottom: '0.75rem' }}>
+                <span className="vp-alert__icon" aria-hidden="true">⚠</span>
+                <span className="vp-alert__body">
+                  Your GitHub connection expired or was revoked. Please connect again.
+                </span>
+              </div>
+            )}
+            <p className="connect-card__note">
+              You will authorize JobFitAI on GitHub. It requests no repository permissions: it only learns who you are
+              and which public repositories you own.
             </p>
-          )}
-          <button type="button" className="button primary-button" onClick={handleConnect} disabled={isConnecting}>
+          </div>
+          <button type="button" className="vp-btn vp-btn--primary" onClick={handleConnect} disabled={isConnecting}>
             {isConnecting ? 'Redirecting to GitHub…' : connection.needsReconnect ? 'Reconnect GitHub' : 'Connect GitHub'}
           </button>
-          <p style={noteStyle}>
-            You will authorize JobFitAI on GitHub. It requests no repository permissions: it only learns who you are
-            and which public repositories you own.
-          </p>
         </div>
       )}
 
       {isConnected && (
-        <div>
-          <p style={{ margin: '0 0 0.5rem 0' }}>
-            Connected as <strong>@{connection.login}</strong>{' '}
-            <button type="button" className="button secondary-button" onClick={handleDisconnect}>
-              Disconnect
-            </button>
-          </p>
-
-          {reposQuery.isLoading && <p style={noteStyle}>Loading your public repositories…</p>}
-          {reposError && (
-            <p role="alert" style={errorStyle}>
-              {reposError}
-            </p>
-          )}
-
-          {reposQuery.isSuccess && repos.length === 0 && (
-            <p style={noteStyle}>No public repositories were found on this account.</p>
-          )}
-
-          {repos.length > 0 && (
-            <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0' }} aria-label="Your public repositories">
-              {repos.map((repo) => (
-                <li key={repo.repoId} style={{ margin: '0.4rem 0', opacity: repo.selectable ? 1 : 0.65 }}>
-                  <label style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
-                    <input
-                      type="radio"
-                      name="github-repo"
-                      value={repo.repoId}
-                      checked={selectedRepoId === repo.repoId}
-                      disabled={!repo.selectable || isJobActive || isStarting}
-                      onChange={() => setSelectedRepoId(repo.repoId)}
-                      aria-label={`Select ${repo.fullName}`}
-                    />
-                    <span>
-                      <strong>{repo.fullName}</strong>{' '}
-                      <small>
-                        Public
-                        {repo.control?.verified ? ' · you own this repository' : ''}
-                        {repo.isFork ? ' · fork' : ''}
-                        {repo.isArchived ? ' · archived' : ''}
-                      </small>
-                      {repo.description && <div style={noteStyle}>{repo.description}</div>}
-                      {!repo.selectable && repo.unsupportedMessage && (
-                        <div style={{ ...noteStyle, color: '#e0a458' }}>{repo.unsupportedMessage}</div>
-                      )}
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <p style={noteStyle}>
-            Private repositories are not supported in this version and are not listed. Organization and
-            collaborator repositories are not supported yet.
-          </p>
-
-          <button
-            type="button"
-            className="button primary-button"
-            onClick={handleAnalyze}
-            disabled={selectedRepoId === null || isStarting || isJobActive}
-          >
-            {isStarting || isJobActive ? 'Analyzing…' : 'Analyze selected repository'}
+        <div className="connect-card">
+          <span className="connect-card__who">
+            <span className="connect-card__dot" aria-hidden="true" />
+            <span>
+              Connected as <strong>@{connection.login}</strong>
+            </span>
+          </span>
+          <button type="button" className="vp-btn vp-btn--ghost" onClick={handleDisconnect}>
+            Disconnect
           </button>
         </div>
       )}
 
+      {isConnected && (
+        <details className="vp-details">
+          <summary>Advanced: link a single repository by hand</summary>
+          <div className="vp-details__body">
+            <p className="connect-card__note">
+              Normally you do not need this: use “Best projects for this job” below. Linking one repository here is
+              useful to back up a project from your resume.
+            </p>
+
+            {reposQuery.isLoading && <p className="vp-panel__desc">Loading your public repositories…</p>}
+            {reposError && (
+              <div className="vp-alert vp-alert--error" role="alert">
+                <span className="vp-alert__icon" aria-hidden="true">⚠</span>
+                <span className="vp-alert__body">{reposError}</span>
+              </div>
+            )}
+
+            {reposQuery.isSuccess && repos.length === 0 && (
+              <p className="vp-panel__desc">No public repositories were found on this account.</p>
+            )}
+
+            {repos.length > 0 && (
+              <ul className="repo-radio-list" aria-label="Your public repositories">
+                {repos.map((repo) => (
+                  <li key={repo.repoId}>
+                    <label className={`repo-radio${repo.selectable ? '' : ' repo-radio--disabled'}`}>
+                      <input
+                        type="radio"
+                        name="github-repo"
+                        value={repo.repoId}
+                        checked={selectedRepoId === repo.repoId}
+                        disabled={!repo.selectable || isJobActive || isStarting}
+                        onChange={() => setSelectedRepoId(repo.repoId)}
+                        aria-label={`Select ${repo.fullName}`}
+                      />
+                      <span>
+                        <span className="repo-radio__name">{repo.fullName}</span>
+                        <small className="repo-radio__meta">
+                          Public
+                          {repo.control?.verified ? ' · you own this repository' : ''}
+                          {repo.isFork ? ' · fork' : ''}
+                          {repo.isArchived ? ' · archived' : ''}
+                        </small>
+                        {repo.description && <span className="repo-radio__desc" style={{ display: 'block' }}>{repo.description}</span>}
+                        {!repo.selectable && repo.unsupportedMessage && (
+                          <span className="repo-radio__warn" style={{ display: 'block' }}>{repo.unsupportedMessage}</span>
+                        )}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="connect-card__note">
+              Private repositories are not supported in this version and are not listed. Organization and
+              collaborator repositories are not supported yet.
+            </p>
+
+            <div>
+              <button
+                type="button"
+                className="vp-btn vp-btn--secondary"
+                onClick={handleAnalyze}
+                disabled={selectedRepoId === null || isStarting || isJobActive}
+              >
+                {isStarting || isJobActive ? 'Analyzing…' : 'Analyze selected repository'}
+              </button>
+            </div>
+          </div>
+        </details>
+      )}
+
       {isJobActive && (
-        <p role="status" style={noteStyle}>
-          {activeJob.job?.status === 'queued' ? 'Queued…' : 'Scanning repository…'}
-          {activeJob.totalCount > 0 ? ` ${activeJob.doneCount} / ${activeJob.totalCount} files` : ''}
-        </p>
+        <div className="vp-alert vp-alert--info" role="status">
+          <span className="vp-alert__icon" aria-hidden="true">⏳</span>
+          <span className="vp-alert__body">
+            {activeJob.job?.status === 'queued' ? 'Queued…' : 'Scanning repository…'}
+            {activeJob.totalCount > 0 ? ` ${activeJob.doneCount} / ${activeJob.totalCount} files` : ''}
+          </span>
+        </div>
       )}
 
       {actionError && (
-        <p role="alert" style={errorStyle}>
-          {actionError}
-        </p>
+        <div className="vp-alert vp-alert--error" role="alert">
+          <span className="vp-alert__icon" aria-hidden="true">⚠</span>
+          <span className="vp-alert__body">{actionError}</span>
+        </div>
       )}
 
       {completed && (
-        <p role="status" style={{ margin: '0.75rem 0', color: '#34d399' }}>
-          ✓ Linked {completed.analysis?.repositoryFullName}.{' '}
-          {completed.control?.verified
-            ? `Ownership verified: this repository belongs to your GitHub account (@${completed.control.githubLogin}). It counts toward verification. Authorship of the code is not verified.`
-            : 'Ownership was not verified, so this repository does not count toward verification.'}
-        </p>
+        <div className="vp-alert vp-alert--success" role="status">
+          <span className="vp-alert__icon" aria-hidden="true">✓</span>
+          <span className="vp-alert__body">
+            Linked {completed.analysis?.repositoryFullName}.{' '}
+            {completed.control?.verified
+              ? `Ownership verified: this repository belongs to your GitHub account (@${completed.control.githubLogin}). It counts toward verification. Authorship of the code is not verified.`
+              : 'Ownership was not verified, so this repository does not count toward verification.'}
+          </span>
+        </div>
       )}
-
     </section>
   );
 }

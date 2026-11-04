@@ -104,8 +104,6 @@ export default function VerificationPage() {
       : 'This plan has no uploaded resume, so the draft is built from your self-description only.';
   }
 
-  const stepClass = (done, current) =>
-    `verification-steps__item${done ? ' verification-steps__item--done' : ''}${current ? ' verification-steps__item--current' : ''}`;
   const exportReady = Boolean(grounded) && claims.length > 0;
 
   // Start verification handler
@@ -232,177 +230,252 @@ export default function VerificationPage() {
     return true;
   });
 
+  // ── What the user sees: four steps, each with a clear state ───────────────────────────────────
+  const githubProjectCount = (githubLinks.data?.links || []).filter((l) => l.verified && l.selected).length;
+  const draftOutdated = Boolean(githubLinks.data?.draftOutdated);
+  const projectsDone = githubProjectCount > 0;
+  const draftDone = hasDraft && !draftOutdated;
+  const verifyDone = Boolean(run);
+  const steps = [
+    { key: 'projects', label: 'Choose projects', hint: projectsDone ? `${githubProjectCount} from GitHub` : 'From GitHub, optional', done: projectsDone, current: !projectsDone && !hasDraft },
+    { key: 'draft', label: 'Generate draft', hint: draftOutdated ? 'Out of date' : hasDraft ? 'Ready' : 'Tailored to the job', done: draftDone, current: (!hasDraft && projectsDone) || draftOutdated },
+    { key: 'verify', label: 'Verify claims', hint: verifyDone ? `${claims.length} claims checked` : 'Check every claim', done: verifyDone, current: draftDone && !verifyDone },
+    { key: 'export', label: 'Export', hint: 'Print or PDF', done: exportReady, current: verifyDone && !exportReady },
+  ];
+
+  const unmatchedCount = run?.config?.githubEvidence?.unmatchedAnalysisIds?.length || 0;
+
   return (
     <div className="verification-page">
       <div className="verification-page__layout">
-        {/* Header Bar */}
-        <header className="verification-page__header">
-          <div className="verification-page__header-left">
-            <Link to={`/interview/${reportId}`} className="button secondary-button" style={{ marginBottom: '0.5rem', display: 'inline-flex' }}>
-              &larr; Back to Interview Prep
-            </Link>
-            <h1>Resume Verification & Grounded Export</h1>
-            <p>
-              The draft is a job-tailored rewrite of your resume. Each claim in it is then checked against the
-              resume and self-description you provided, and only supported bullets reach the export. It confirms
-              consistency with your own material; it does not independently verify facts.
+        {/* Hero */}
+        <header className="vp-hero">
+          <Link to={`/interview/${reportId}`} className="vp-hero__back">
+            &larr; Back to Interview Prep
+          </Link>
+          <h1 className="vp-hero__title">Resume Verification & Grounded Export</h1>
+          <p className="vp-hero__lede">
+            The draft is a job-tailored rewrite of your resume. Each claim in it is then checked against the
+            resume and self-description you provided, and only supported bullets reach the export. It confirms
+            consistency with your own material; it does not independently verify facts.
+          </p>
+          {sourceNotice && (
+            <p className="vp-hero__source" data-testid="resume-source-notice">
+              {sourceNotice}
             </p>
-            {sourceNotice && (
-              <p data-testid="resume-source-notice" style={{ marginTop: '0.25rem' }}>
-                {sourceNotice}
-              </p>
-            )}
-            <ol className="verification-steps" aria-label="Steps" data-testid="verification-steps" style={{ display: 'flex', gap: '1rem', listStyle: 'none', padding: 0, margin: '0.75rem 0 0 0', flexWrap: 'wrap' }}>
-              <li className={stepClass(hasDraft, !hasDraft)} style={{ opacity: hasDraft ? 1 : 0.9 }}>
-                {hasDraft ? '✓ ' : ''}1. Generate draft
-              </li>
-              <li className={stepClass(Boolean(run), hasDraft && !run)} style={{ opacity: hasDraft ? 1 : 0.5 }}>
-                {run ? '✓ ' : ''}2. Verify claims
-              </li>
-              <li className={stepClass(exportReady, Boolean(run) && !exportReady)} style={{ opacity: run ? 1 : 0.5 }}>
-                3. Export
-              </li>
-            </ol>
-          </div>
-
-          <div className="verification-page__header-actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <button
-              type="button"
-              className="button secondary-button"
-              onClick={handleGenerateDraft}
-              disabled={isGeneratingDraft || activeJob.isRunning}
-              title="Tailors your resume to this job using Gemini (costs 1 Gemini call)"
-            >
-              {isGeneratingDraft
-                ? 'Generating Draft (Gemini)...'
-                : hasDraft
-                ? 'Regenerate Resume Draft'
-                : '1. Generate Resume Draft'}
-            </button>
-
-            {!activeJob.isRunning && (
-              <button
-                type="button"
-                className="button primary-button"
-                onClick={handleStartVerification}
-                disabled={isStartingJob || isGeneratingDraft || !canVerify}
-                title={canVerify ? undefined : 'Generate the resume draft first (step 1)'}
-              >
-                {isStartingJob
-                  ? 'Queueing Job...'
-                  : claims.length > 0
-                  ? 'Re-Run Verification'
-                  : '2. Run Verification'}
-              </button>
-            )}
-          </div>
+          )}
         </header>
 
-        {/* Gemini Cost & Confidence Note */}
-        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', marginTop: '-0.5rem', marginBottom: '1rem', textAlign: 'right' }}>
-          * Generating draft costs 1 Gemini call. Verification evaluates claims via embeddings and entailment.<br />
-          * Confidence is a ranking score, not a probability.
-        </div>
+        {/* Progress */}
+        <ol className="vp-steps" aria-label="Steps" data-testid="verification-steps">
+          {steps.map((s, i) => (
+            <li
+              key={s.key}
+              className={`vp-step${s.done ? ' vp-step--done' : ''}${s.current ? ' vp-step--current' : ''}`}
+              aria-current={s.current ? 'step' : undefined}
+            >
+              <span className="vp-step__num" aria-hidden="true">{s.done ? '✓' : i + 1}</span>
+              <span className="vp-step__text">
+                <span className="vp-step__label">{i + 1}. {s.label}</span>
+                <span className="vp-step__hint">{s.hint}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
 
-        {/* Draft Notice / Error */}
-        {draftNotice && (
-          <div className="verification-page__waking-alert" role="status" style={{ background: 'rgba(52, 211, 153, 0.15)', borderColor: 'rgba(52, 211, 153, 0.4)', color: '#34d399' }}>
-            <span>✓ {draftNotice}</span>
-          </div>
-        )}
-        {draftError && (
-          <div className="verification-page__error-alert" role="alert">
-            <strong>Draft Error: </strong>{draftError}
-          </div>
-        )}
-        {startError && (
-          <div className="verification-page__error-alert" role="alert">
-            <strong>Verification Error: </strong>{startError}
-          </div>
-        )}
-
-        {/* Newer draft than the verified one: export still uses the verified draft */}
-        {grounded && grounded.isLatestDraftVerified === false && (
-          <div className="verification-page__waking-alert" role="status" data-testid="stale-draft-notice">
-            <span>
-              You generated a newer draft after the last verification. Exports use the verified draft;
-              run verification again to export the newer one.
-            </span>
-          </div>
-        )}
-
-        {/* Print Instruction Alert */}
-        {printNotice && (
-          <div className="verification-page__waking-alert" role="status" style={{ background: 'rgba(96, 165, 250, 0.15)', borderColor: 'rgba(96, 165, 250, 0.4)', color: '#60a5fa' }}>
-            <span>🖨 {printNotice}</span>
-          </div>
-        )}
-
-
-        {/* Free-tier server wake-up notification */}
+        {/* Alerts that apply to the whole page */}
         {isWakingUp && (
-          <div className="verification-page__waking-alert" role="status">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-            <span>
+          <div className="vp-alert vp-alert--warning" role="status">
+            <span className="vp-alert__icon" aria-hidden="true">⏱</span>
+            <span className="vp-alert__body">
               Server is waking up (free hosting, up to a minute)... Please wait while instances initialize.
             </span>
           </div>
         )}
-
-        {/* Error notification */}
-        {(isVerifyingError || activeJob.isFailed) && (
-          <div className="verification-page__error-alert" role="alert">
-            <strong>Verification Notice: </strong>
-            {activeJob.error?.message ||
-              verifyError?.response?.data?.error?.message ||
-              'Unable to load or run verification at this time. Please check your connection.'}
+        {githubResult && (
+          <div
+            role={githubResult.type === 'error' ? 'alert' : 'status'}
+            className={`vp-alert vp-alert--${githubResult.type === 'error' ? 'error' : 'success'}`}
+            data-testid="github-connect-result"
+          >
+            <span className="vp-alert__icon" aria-hidden="true">{githubResult.type === 'error' ? '⚠' : '✓'}</span>
+            <span className="vp-alert__body">{githubResult.message}</span>
           </div>
         )}
 
-        {/* Loading state */}
+        {/* Step 1: GitHub projects */}
+        <section className="vp-panel" aria-label="GitHub projects">
+          <div className="vp-panel__head">
+            <div>
+              <h2 className="vp-panel__title">
+                <span className="vp-panel__num">1</span>Your projects from GitHub
+                <span className="vp-panel__badge">Optional</span>
+              </h2>
+              <p className="vp-panel__desc">
+                Connect GitHub and the app finds the repositories that best fit this job. Your Projects section is
+                then written from those repositories, and each project is checked against its own repository.
+              </p>
+            </div>
+          </div>
+          <GithubConnectPanel
+            reportId={reportId}
+            onAnalysisComplete={() => {
+              queryClient.invalidateQueries({ queryKey: ['githubLinks', reportId] });
+            }}
+          />
+          <ProjectRankingPanel reportId={reportId} />
+          <GithubProjectLinks reportId={reportId} data={githubLinks.data} />
+        </section>
+
+        {/* Steps 2 and 3: draft and verification */}
+        <section className="vp-panel" aria-label="Draft and verification">
+          <div className="vp-panel__head">
+            <div>
+              <h2 className="vp-panel__title">
+                <span className="vp-panel__num">2</span>Build and check your resume
+              </h2>
+              <p className="vp-panel__desc">
+                Generating the draft costs 1 Gemini call (plus 1 per GitHub project). Verification checks every claim
+                with embeddings and entailment. Confidence is a ranking score, not a probability.
+              </p>
+            </div>
+          </div>
+
+          {draftOutdated && (
+            <div className="vp-alert vp-alert--warning" role="status" data-testid="draft-outdated-notice">
+              <span className="vp-alert__icon" aria-hidden="true">⚠</span>
+              <span className="vp-alert__body">
+                Your draft was made before you chose your GitHub projects, so it does not use them yet. Generate the
+                draft again to write your Projects section from them.
+              </span>
+            </div>
+          )}
+
+          <div className="action-grid">
+            <div className="action-tile">
+              <div className="action-tile__top">
+                <span className="vp-panel__num">2</span>
+                <span className="action-tile__title">Generate resume draft</span>
+              </div>
+              <p className="action-tile__desc">
+                A job-tailored rewrite of your resume. Nothing is added that your evidence does not support.
+                {githubProjectCount > 0
+                  ? ` Your Projects section comes from your ${githubProjectCount} selected GitHub project${githubProjectCount === 1 ? '' : 's'}.`
+                  : ''}
+              </p>
+              <div className="action-tile__foot">
+                <button
+                  type="button"
+                  className={`vp-btn ${hasDraft && !draftOutdated ? 'vp-btn--secondary' : 'vp-btn--primary'}`}
+                  onClick={handleGenerateDraft}
+                  disabled={isGeneratingDraft || activeJob.isRunning}
+                  title="Tailors your resume to this job using Gemini (costs 1 Gemini call)"
+                >
+                  {isGeneratingDraft && <span className="vp-spinner" aria-hidden="true" />}
+                  {isGeneratingDraft
+                    ? 'Generating Draft (Gemini)...'
+                    : hasDraft
+                    ? 'Regenerate Resume Draft'
+                    : '2. Generate Resume Draft'}
+                </button>
+              </div>
+            </div>
+
+            <div className={`action-tile${canVerify ? '' : ' action-tile--locked'}`}>
+              <div className="action-tile__top">
+                <span className="vp-panel__num">3</span>
+                <span className="action-tile__title">Verify every claim</span>
+              </div>
+              <p className="action-tile__desc">
+                Each bullet is split into small claims and checked against your resume
+                {githubProjectCount > 0 ? ' (and, for GitHub projects, against that repository)' : ''}. Only claims that
+                hold up are exported.
+              </p>
+              <div className="action-tile__foot">
+                {!activeJob.isRunning && (
+                  <button
+                    type="button"
+                    className={`vp-btn ${draftDone && !verifyDone ? 'vp-btn--primary' : 'vp-btn--secondary'}`}
+                    onClick={handleStartVerification}
+                    disabled={isStartingJob || isGeneratingDraft || !canVerify}
+                    title={canVerify ? undefined : 'Generate the resume draft first (step 2)'}
+                  >
+                    {isStartingJob
+                      ? 'Queueing Job...'
+                      : claims.length > 0
+                      ? 'Re-Run Verification'
+                      : '3. Run Verification'}
+                  </button>
+                )}
+                {!canVerify && <span className="action-tile__meta">Generate the draft first.</span>}
+              </div>
+            </div>
+          </div>
+
+          {draftNotice && (
+            <div className="vp-alert vp-alert--success" role="status">
+              <span className="vp-alert__icon" aria-hidden="true">✓</span>
+              <span className="vp-alert__body">{draftNotice}</span>
+            </div>
+          )}
+          {draftError && (
+            <div className="vp-alert vp-alert--error" role="alert">
+              <span className="vp-alert__icon" aria-hidden="true">⚠</span>
+              <span className="vp-alert__body"><strong>Draft Error: </strong>{draftError}</span>
+            </div>
+          )}
+          {startError && (
+            <div className="vp-alert vp-alert--error" role="alert">
+              <span className="vp-alert__icon" aria-hidden="true">⚠</span>
+              <span className="vp-alert__body"><strong>Verification Error: </strong>{startError}</span>
+            </div>
+          )}
+          {(isVerifyingError || activeJob.isFailed) && (
+            <div className="vp-alert vp-alert--error" role="alert">
+              <span className="vp-alert__icon" aria-hidden="true">⚠</span>
+              <span className="vp-alert__body">
+                <strong>Verification Notice: </strong>
+                {activeJob.error?.message ||
+                  verifyError?.response?.data?.error?.message ||
+                  'Unable to load or run verification at this time. Please check your connection.'}
+              </span>
+            </div>
+          )}
+          {grounded && grounded.isLatestDraftVerified === false && (
+            <div className="vp-alert vp-alert--info" role="status" data-testid="stale-draft-notice">
+              <span className="vp-alert__icon" aria-hidden="true">ℹ</span>
+              <span className="vp-alert__body">
+                You generated a newer draft after the last verification. Exports use the verified draft;
+                run verification again to export the newer one.
+              </span>
+            </div>
+          )}
+          {unmatchedCount > 0 && (
+            <div className="vp-alert vp-alert--warning" role="status" data-testid="unmatched-github-notice">
+              <span className="vp-alert__icon" aria-hidden="true">⚠</span>
+              <span className="vp-alert__body">
+                {unmatchedCount} linked repositor{unmatchedCount === 1 ? 'y' : 'ies'} did not match any project in
+                the draft, so {unmatchedCount === 1 ? 'it was' : 'they were'} not used as evidence in this
+                verification. Choose the project each repository belongs to above, then verify again.
+              </span>
+            </div>
+          )}
+        </section>
+
+        {printNotice && (
+          <div className="vp-alert vp-alert--info" role="status">
+            <span className="vp-alert__icon" aria-hidden="true">🖨</span>
+            <span className="vp-alert__body">{printNotice}</span>
+          </div>
+        )}
+
         {isVerifyingLoading && !isWakingUp && (
-          <div className="loading-screen" style={{ minHeight: '200px' }}>
+          <div className="loading-screen" style={{ minHeight: '120px' }}>
             <p>Loading verification audit records...</p>
           </div>
         )}
 
-        {/* Result of the GitHub authorization redirect */}
-        {githubResult && (
-          <div
-            role={githubResult.type === 'error' ? 'alert' : 'status'}
-            className={githubResult.type === 'error' ? 'verification-page__error-alert' : 'verification-page__waking-alert'}
-            data-testid="github-connect-result"
-          >
-            <span>{githubResult.message}</span>
-          </div>
-        )}
-
-        {/* GitHub repository evidence: connect GitHub, pick a repository, then say which project it belongs to */}
-        <GithubConnectPanel
-          reportId={reportId}
-          onAnalysisComplete={() => {
-            queryClient.invalidateQueries({ queryKey: ['githubLinks', reportId] });
-          }}
-        />
-        <ProjectRankingPanel reportId={reportId} />
-        <GithubProjectLinks reportId={reportId} data={githubLinks.data} />
-
-        {run?.config?.githubEvidence?.unmatchedAnalysisIds?.length > 0 && (
-          <div className="verification-page__waking-alert" role="status" data-testid="unmatched-github-notice">
-            <span>
-              {run.config.githubEvidence.unmatchedAnalysisIds.length} linked repositor
-              {run.config.githubEvidence.unmatchedAnalysisIds.length === 1 ? 'y' : 'ies'} did not match any project in
-              the draft, so {run.config.githubEvidence.unmatchedAnalysisIds.length === 1 ? 'it was' : 'they were'} not
-              used as evidence in this verification. Choose the project each repository belongs to above, then
-              verify again.
-            </span>
-          </div>
-        )}
-
-        {/* Summary Bar */}
+        {/* Results and export (step 4) */}
         {(claims.length > 0 || activeJob.isRunning) && (
           <SummaryBar
             claims={claims}
@@ -416,41 +489,26 @@ export default function VerificationPage() {
           />
         )}
 
-        {/* Filter controls */}
         {claims.length > 0 && (
           <div className="filter-bar" role="toolbar" aria-label="Filter claims by status">
-            <button
-              type="button"
-              className={`filter-bar__btn ${filterStatus === 'all' ? 'filter-bar__btn--active' : ''}`}
-              onClick={() => setFilterStatus('all')}
-            >
-              All Claims ({claims.length})
-            </button>
-            <button
-              type="button"
-              className={`filter-bar__btn ${filterStatus === 'needs_review' ? 'filter-bar__btn--active' : ''}`}
-              onClick={() => setFilterStatus('needs_review')}
-            >
-              Needs Review
-            </button>
-            <button
-              type="button"
-              className={`filter-bar__btn ${filterStatus === 'verified' ? 'filter-bar__btn--active' : ''}`}
-              onClick={() => setFilterStatus('verified')}
-            >
-              Verified / Approved
-            </button>
-            <button
-              type="button"
-              className={`filter-bar__btn ${filterStatus === 'rejected' ? 'filter-bar__btn--active' : ''}`}
-              onClick={() => setFilterStatus('rejected')}
-            >
-              Rejected
-            </button>
+            {[
+              ['all', `All Claims (${claims.length})`],
+              ['needs_review', 'Needs Review'],
+              ['verified', 'Verified / Approved'],
+              ['rejected', 'Rejected'],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`filter-bar__btn ${filterStatus === key ? 'filter-bar__btn--active' : ''}`}
+                onClick={() => setFilterStatus(key)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         )}
 
-        {/* Claim Rows List */}
         {claims.length > 0 ? (
           <div className="claim-list">
             {filteredClaims.map((claim) => (
@@ -465,9 +523,9 @@ export default function VerificationPage() {
         ) : (
           !isVerifyingLoading &&
           !activeJob.isRunning && (
-            <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+            <div className="vp-empty">
               <h2>{hasDraft ? 'Ready to Verify' : 'No Draft Yet'}</h2>
-              <p style={{ color: '#7d8590', maxWidth: '480px', margin: '0.5rem auto 1.5rem auto' }}>
+              <p>
                 {hasDraft
                   ? 'Your tailored draft is ready. Run verification to check each claim before exporting.'
                   : 'Start by generating a job-tailored draft of your resume. Then run verification.'}{' '}
@@ -477,20 +535,20 @@ export default function VerificationPage() {
               {hasDraft ? (
                 <button
                   type="button"
-                  className="button primary-button"
+                  className="vp-btn vp-btn--primary"
                   onClick={handleStartVerification}
                   disabled={isStartingJob || isGeneratingDraft}
                 >
-                  {isStartingJob ? 'Queueing Job...' : '2. Run Verification'}
+                  {isStartingJob ? 'Queueing Job...' : '3. Run Verification'}
                 </button>
               ) : (
                 <button
                   type="button"
-                  className="button primary-button"
+                  className="vp-btn vp-btn--primary"
                   onClick={handleGenerateDraft}
                   disabled={isGeneratingDraft || draftQuery.isLoading}
                 >
-                  {isGeneratingDraft ? 'Generating Draft (Gemini)...' : '1. Generate Resume Draft'}
+                  {isGeneratingDraft ? 'Generating Draft (Gemini)...' : '2. Generate Resume Draft'}
                 </button>
               )}
             </div>

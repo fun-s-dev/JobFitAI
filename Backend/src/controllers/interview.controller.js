@@ -2,6 +2,7 @@ const pdfParse = require("pdf-parse")
 const aiService = require("../services/ai.service")
 const interviewReportModel = require("../models/interviewReport.model")
 const { normalizeText } = require("../v2/core/normalizeText")
+const { stripMarkdownLinks, extractResumeExtras } = require("../v2/core/resumeExtras")
 const { LIMITS } = require("../v2/schemas/v1")
 const { sendV1Error } = require("../v2/middlewares/v1Http")
 const { UserDataError } = require("../v2/services/userData.service")
@@ -24,7 +25,7 @@ function deriveInterviewReportTitle(jobDescription, aiTitle) {
 }
 
 /**
- * Extracts plain text from an uploaded PDF buffer.
+ * Extracts plain text (and the resume's links, certifications and grade lines) from an uploaded PDF buffer.
  * Throws ResumeError (with an HTTP status and user-facing message) for unreadable or empty PDFs.
  */
 class ResumeError extends Error {
@@ -41,7 +42,8 @@ async function extractResumeText(buffer) {
     let rawText = ""
     try {
         parser = new pdfParse.PDFParse(Uint8Array.from(buffer))
-        const parsed = await parser.getText()
+        // Hyperlinks come back as Markdown [label](url); the labels alone are the normal resume text
+        const parsed = await parser.getText({ parseHyperlinks: true })
         rawText = parsed && typeof parsed.text === "string" ? parsed.text : ""
     } catch {
         throw new ResumeError(
@@ -55,7 +57,7 @@ async function extractResumeText(buffer) {
         }
     }
 
-    const text = normalizeText(rawText)
+    const text = normalizeText(stripMarkdownLinks(rawText))
 
     if (text.length < LIMITS.RESUME_TEXT_MIN) {
         throw new ResumeError(
@@ -73,7 +75,14 @@ async function extractResumeText(buffer) {
         )
     }
 
-    return text
+    let extras = null
+    try {
+        extras = extractResumeExtras(rawText)
+    } catch {
+        extras = null // extras are a bonus; a parsing problem must never block the report
+    }
+
+    return { text, extras }
 }
 
 /**
@@ -130,9 +139,12 @@ async function generateInterViewReportController(req, res) {
     }
 
     let resumeText = ""
+    let resumeExtras = null
     if (req.file) {
         try {
-            resumeText = await extractResumeText(req.file.buffer)
+            const extracted = await extractResumeText(req.file.buffer)
+            resumeText = extracted.text
+            resumeExtras = extracted.extras
         } catch (error) {
             if (error instanceof ResumeError) {
                 return sendV1Error(req, res, error.status, error.code, error.message)
@@ -161,6 +173,7 @@ async function generateInterViewReportController(req, res) {
     const interviewReport = await interviewReportModel.create({
         user: req.user.id,
         resume: resumeText,
+        resumeExtras,
         selfDescription,
         jobDescription,
         matchScore: aiReport.matchScore,
@@ -205,7 +218,7 @@ async function getAllInterviewReportsController(req, res) {
         .find({ user: req.user.id })
         .sort({ createdAt: -1 })
         .limit(100)
-        .select("-resume -selfDescription -jobDescription -__v -technicalQuestions -behavioralQuestions -skillGaps -preparationPlan")
+        .select("-resume -resumeExtras -selfDescription -jobDescription -__v -technicalQuestions -behavioralQuestions -skillGaps -preparationPlan")
 
     res.status(200).json({
         message: "Interview reports fetched successfully.",

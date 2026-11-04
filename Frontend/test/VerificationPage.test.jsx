@@ -67,10 +67,10 @@ describe('VerificationPage step order (Phase 0)', () => {
     getLatestDraft.mockResolvedValue(null);
     renderPage();
 
-    const verifyBtn = await screen.findByRole('button', { name: /2\. run verification/i });
+    const verifyBtn = await screen.findByRole('button', { name: /3\. run verification/i });
     expect(verifyBtn.disabled).toBe(true);
     expect(await screen.findByText('No Draft Yet')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: /1\. generate resume draft/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /2\. generate resume draft/i }).length).toBeGreaterThan(0);
     expect(startVerificationJob).not.toHaveBeenCalled();
   });
 
@@ -79,7 +79,7 @@ describe('VerificationPage step order (Phase 0)', () => {
     renderPage();
 
     await screen.findByText('Ready to Verify');
-    const verifyBtn = screen.getAllByRole('button', { name: /2\. run verification/i })[0];
+    const verifyBtn = screen.getAllByRole('button', { name: /3\. run verification/i })[0];
     expect(verifyBtn.disabled).toBe(false);
   });
 
@@ -88,12 +88,12 @@ describe('VerificationPage step order (Phase 0)', () => {
     createDraftForReport.mockResolvedValue({ draft: {} });
     renderPage();
 
-    const gen = (await screen.findAllByRole('button', { name: /1\. generate resume draft/i }))[0];
+    const gen = (await screen.findAllByRole('button', { name: /2\. generate resume draft/i }))[0];
     fireEvent.click(gen);
 
     await waitFor(() => expect(createDraftForReport).toHaveBeenCalledWith('r1'));
     await screen.findByText('Ready to Verify');
-    expect(screen.getAllByRole('button', { name: /2\. run verification/i })[0].disabled).toBe(false);
+    expect(screen.getAllByRole('button', { name: /3\. run verification/i })[0].disabled).toBe(false);
   });
 
   it('does not block the user when the draft lookup itself fails', async () => {
@@ -101,7 +101,7 @@ describe('VerificationPage step order (Phase 0)', () => {
     renderPage();
 
     await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: /2\. run verification/i })[0].disabled).toBe(false)
+      expect(screen.getAllByRole('button', { name: /3\. run verification/i })[0].disabled).toBe(false)
     );
   });
 
@@ -122,13 +122,14 @@ describe('VerificationPage step order (Phase 0)', () => {
     expect((await screen.findByTestId('resume-source-notice')).textContent).toMatch(/self-description only/i);
   });
 
-  it('shows the three steps', async () => {
+  it('shows the four steps', async () => {
     getLatestDraft.mockResolvedValue(null);
     renderPage();
     const steps = await screen.findByTestId('verification-steps');
-    expect(steps.textContent).toMatch(/1\. generate draft/i);
-    expect(steps.textContent).toMatch(/2\. verify claims/i);
-    expect(steps.textContent).toMatch(/3\. export/i);
+    expect(steps.textContent).toMatch(/1\. choose projects/i);
+    expect(steps.textContent).toMatch(/2\. generate draft/i);
+    expect(steps.textContent).toMatch(/3\. verify claims/i);
+    expect(steps.textContent).toMatch(/4\. export/i);
   });
 });
 
@@ -193,7 +194,7 @@ describe('VerificationPage linked repositories (Phase 1)', () => {
 
     await screen.findByTestId('github-project-links');
     await screen.findByText('Ready to Verify');
-    fireEvent.click(screen.getAllByRole('button', { name: /2\. run verification/i })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /3\. run verification/i })[0]);
 
     await waitFor(() =>
       expect(startVerificationJob).toHaveBeenCalledWith('r1', { githubAnalysisIds: ['a1', 'a2'] }) // unverified legacy link is not sent
@@ -322,7 +323,7 @@ describe('VerificationPage GitHub projects (Phase 2 step B)', () => {
       githubProjects: { configured: true, used: [{ name: 'Banking System Backend', repo: 'me/Banking-System-backend' }], skipped: [], error: null },
     });
     renderPage();
-    fireEvent.click((await screen.findAllByRole('button', { name: /1\. generate resume draft/i }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /2\. generate resume draft/i }))[0]);
     const notice = await screen.findByText(/written from 1 GitHub project: Banking System Backend/);
     expect(notice.textContent).toMatch(/Confirm that you built each one/);
   });
@@ -338,7 +339,7 @@ describe('VerificationPage GitHub projects (Phase 2 step B)', () => {
       },
     });
     renderPage();
-    fireEvent.click((await screen.findAllByRole('button', { name: /1\. generate resume draft/i }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /2\. generate resume draft/i }))[0]);
     const notice = await screen.findByText(/No bullets supported by the README of me\/a/);
     expect(notice.textContent).toMatch(/GitHub projects could not be written \(Gemini is down\)/);
     expect(notice.textContent).toMatch(/your resume's own projects were kept/);
@@ -348,8 +349,95 @@ describe('VerificationPage GitHub projects (Phase 2 step B)', () => {
     getLatestDraft.mockResolvedValue(null);
     createDraftForReport.mockResolvedValue({ githubProjects: { configured: false, used: [], skipped: [], error: null } });
     renderPage();
-    fireEvent.click((await screen.findAllByRole('button', { name: /1\. generate resume draft/i }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /2\. generate resume draft/i }))[0]);
     const notice = await screen.findByText(/Tailored resume draft generated/);
     expect(notice.textContent).not.toMatch(/GitHub/);
+  });
+});
+
+describe('VerificationPage: out-of-date draft, step states and naming resume projects', () => {
+  const link = (overrides = {}) => ({
+    analysisId: 'g1',
+    repositoryFullName: 'me/Banking-System-backend',
+    verified: true,
+    explicitProjectName: null,
+    matchedProject: 'Backend Ledger',
+    matchSource: 'name',
+    selected: true,
+    inDraft: false,
+    displayName: null,
+    defaultName: 'Banking System Backend',
+    authorshipConfirmed: false,
+    ...overrides,
+  });
+  const data = (overrides = {}) => ({ hasDraft: true, draftProjects: ['Backend Ledger'], draftOutdated: false, links: [link()], ...overrides });
+  const stepText = async (n) => {
+    const steps = await screen.findByTestId('verification-steps');
+    return steps.querySelectorAll('li')[n - 1];
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getVerificationRun.mockRejectedValue(notFound());
+    getLatestDraft.mockResolvedValue({ projects: [] });
+    getInterviewReportById.mockResolvedValue({ interviewReport: { _id: 'r1', resume: 'Some resume text here' } });
+    getReportGithubLinks.mockResolvedValue(data());
+  });
+
+  it('tells the user when the saved draft was made before their GitHub projects were chosen', async () => {
+    getReportGithubLinks.mockResolvedValue(data({ draftOutdated: true }));
+    renderPage();
+    const banner = await screen.findByTestId('draft-outdated-notice');
+    expect(banner.textContent).toMatch(/made before you chose your GitHub projects/i);
+    expect(banner.textContent).toMatch(/Generate the\s+draft again/i);
+    expect((await stepText(2)).textContent).toMatch(/Out of date/);
+  });
+
+  it('shows no such banner when the draft is up to date', async () => {
+    renderPage();
+    await screen.findByTestId('github-project-links');
+    expect(screen.queryByTestId('draft-outdated-notice')).toBeNull();
+  });
+
+  it('marks step 1 done when GitHub projects were chosen, and counts them', async () => {
+    renderPage();
+    const step1 = await stepText(1);
+    await waitFor(() => expect(step1.className).toMatch(/vp-step--done/));
+    expect(step1.textContent).toMatch(/1 from GitHub/);
+  });
+
+  it('keeps step 1 as the current step when there is nothing yet', async () => {
+    getLatestDraft.mockResolvedValue(null);
+    getReportGithubLinks.mockResolvedValue({ hasDraft: false, draftProjects: [], draftOutdated: false, links: [] });
+    renderPage();
+    const step1 = await stepText(1);
+    expect(step1.className).toMatch(/vp-step--current/);
+    expect(step1.className).not.toMatch(/vp-step--done/);
+    expect(step1.textContent).toMatch(/optional/i);
+  });
+
+  it('lets the user rename a resume project that a repository is assigned to (not only GitHub-written projects)', async () => {
+    updateGithubProjectDetails.mockResolvedValue({ displayName: 'Ledger Pro' });
+    getReportGithubLinks.mockResolvedValue(data({ links: [link({ selected: false, matchedProject: 'Backend Ledger', matchSource: 'user', explicitProjectName: 'Backend Ledger' })] }));
+    renderPage();
+
+    const other = await screen.findByTestId('other-linked-repos');
+    expect(other.textContent).toMatch(/Used as evidence for: Backend Ledger/);
+    const input = await screen.findByLabelText('Name on your resume');
+    fireEvent.change(input, { target: { value: 'Ledger Pro' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save name' }));
+    await waitFor(() => expect(updateGithubProjectDetails).toHaveBeenCalledWith('r1', 'g1', { displayName: 'Ledger Pro' }));
+  });
+
+  it('does not offer a name field for a repository that is not matched to any project yet', async () => {
+    getReportGithubLinks.mockResolvedValue(data({ links: [link({ selected: false, matchedProject: null, matchSource: 'none' })] }));
+    renderPage();
+    await screen.findByTestId('other-linked-repos');
+    expect(screen.queryByLabelText('Name on your resume')).toBeNull();
+  });
+
+  it('shows the GitHub-project note on the draft tile only when projects were chosen', async () => {
+    renderPage();
+    expect((await screen.findAllByText(/comes from your 1 selected GitHub project/i)).length).toBeGreaterThan(0);
   });
 });

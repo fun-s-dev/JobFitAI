@@ -11,6 +11,7 @@ const pdfRenderer = require('../adapters/pdfRenderer');
 const { renderDraftToHtml } = require('../templates/resumePdfTemplate');
 const { buildGroundedExport } = require('../core/groundedExport');
 const { applyGithubProjectRules } = require('../core/githubProjects');
+const { applyResumeExtras } = require('../core/resumeExtras');
 const { getCfg } = require('../config/env');
 
 // One client for the draft and the GitHub project bullets, so their calls share one pacer
@@ -116,13 +117,17 @@ function createDraftController({
     ]);
 
     // GitHub projects are exported only after the user confirmed they built them, under the name they chose
-    const hasGithubProjects = (plainDraft.projects || []).some((p) => p && p.source === 'github' && p.analysisId);
-    if (hasGithubProjects) {
+    // Projects tied to one of the user's repositories: chosen name, repository link, and (for projects
+    // written from a repository) the "I built this" gate. Only looked up when the draft has projects.
+    if ((plainDraft.projects || []).length > 0) {
       const links = await linkModel.find({ report: report._id, user: userId });
       const applied = applyGithubProjectRules({ draft: plainDraft, exportDraft: grounded.exportDraft, links });
       grounded.exportDraft = applied.exportDraft;
       grounded.excludedItems = [...grounded.excludedItems, ...applied.excludedItems];
     }
+
+    // Links, certifications and grade copied from the resume itself (deterministic, never AI-written)
+    grounded.exportDraft = applyResumeExtras({ exportDraft: grounded.exportDraft, extras: report.resumeExtras });
 
     return {
       run,

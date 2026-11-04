@@ -74,6 +74,11 @@ const interviewReportSchema = new mongoose.Schema({
     resume: {
         type: String,
     },
+    // Links, certifications and grade lines copied from the uploaded PDF (see v2/core/resumeExtras.js)
+    resumeExtras: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null,
+    },
     selfDescription: {
         type: String,
     },

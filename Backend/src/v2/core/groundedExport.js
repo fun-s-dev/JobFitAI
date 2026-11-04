@@ -134,7 +134,15 @@ function buildGroundedExport(draft = {}, claims = [], evidenceTexts = []) {
       }))
       .filter((exp) => exp.bullets.length > 0),
     projects: (Array.isArray(draft.projects) ? draft.projects : [])
-      .map((prj) => ({ id: prj.id, name: prj.name, bullets: keepBullets(prj.bullets) }))
+      .map((prj) => {
+        const tech = sections.projectTech && sections.projectTech[prj.id];
+        return {
+          id: prj.id,
+          name: prj.name,
+          ...(tech && tech.length > 0 ? { tech } : {}),
+          bullets: keepBullets(prj.bullets),
+        };
+      })
       .filter((prj) => prj.bullets.length > 0),
     skills: sections.skills,
     education: (Array.isArray(draft.education) ? draft.education : [])

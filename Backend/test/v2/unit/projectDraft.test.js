@@ -234,7 +234,11 @@ describe('projectDraft.service', () => {
       analyses: [analysis('a1', 'a', 'Node.js app')],
     });
     await ctx.service.buildGithubProjects({ userId: 'u', reportId: 'r' });
-    expect(ctx.llmClient.generateStructured.mock.calls[0][0].system).toMatch(/Do not write a bullet that only lists technologies/);
+    const system = ctx.llmClient.generateStructured.mock.calls[0][0].system;
+    expect(system).toMatch(/Never write a bullet that only lists technologies/);
+    expect(system).toMatch(/Put the aspect most relevant to the job requirements FIRST/);
+    expect(system).toMatch(/exactly 3 bullets/);
+    expect(system).toMatch(/the concrete mechanism or design decision/);
   });
 
   it('gives the model several README passages, not just the ones that match the job', async () => {

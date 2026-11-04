@@ -27,6 +27,9 @@ const ProjectEntrySchema = z.object({
   source: z.enum(['resume', 'github']).optional(),
   analysisId: z.string().optional(),
   repoFullName: z.string().optional(),
+  // Technologies of the project, shown next to its name (split out of a Name | tech, tech heading,
+  // or derived from the repository's own code for GitHub projects)
+  tech: z.array(z.string()).optional(),
 });
 
 // Canonical Education Entry Schema
@@ -92,6 +95,23 @@ const RawDraftSchema = z.object({
 });
 
 /**
+ * Resume project headings often read Name | React, Node.js | GitHub. The part before the first  | 
+ * is the project name; the rest is its technology list.
+ */
+function splitProjectHeading(rawName) {
+  const text = typeof rawName === 'string' ? rawName.trim() : '';
+  const idx = text.indexOf(' | ');
+  if (idx <= 0) return { name: text, tech: [] };
+  const tech = text
+    .slice(idx + 3)
+    .split(/[,;|]/)
+    .map((s) => s.trim())
+    .filter((s) => s && !/^github$/i.test(s))
+    .slice(0, 10);
+  return { name: text.slice(0, idx).trim() || text, tech };
+}
+
+/**
  * Normalizes a raw draft object and assigns deterministic IDs in code.
  * exp0 -> exp0.b0, exp0.b1...
  * prj0 -> prj0.b0, prj0.b1...
@@ -137,9 +157,11 @@ function assignDraftIds(rawDraft = {}) {
         };
       }).filter((b) => b.text.length > 0);
 
+      const heading = splitProjectHeading(prj.name);
       return {
         id: prjId,
-        name: (prj.name || '').trim(),
+        name: heading.name,
+        ...(heading.tech.length > 0 ? { tech: heading.tech } : {}),
         bullets,
       };
     }
@@ -182,4 +204,5 @@ module.exports = {
   ProjectEntrySchema,
   EducationEntrySchema,
   assignDraftIds,
+  splitProjectHeading,
 };
