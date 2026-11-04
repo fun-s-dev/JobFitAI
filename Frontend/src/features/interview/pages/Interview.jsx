@@ -48,7 +48,7 @@ const RoadMapDay = ({ day }) => (
             <h3 className='roadmap-day__focus'>{day.focus}</h3>
         </div>
         <ul className='roadmap-day__tasks'>
-            {day.tasks.map((task, i) => (
+            {(day.tasks ?? []).map((task, i) => (
                 <li key={i}>
                     <span className='roadmap-day__bullet' />
                     {task}
@@ -61,17 +61,37 @@ const RoadMapDay = ({ day }) => (
 // ── Main Component ────────────────────────────────────────────────────────────
 const Interview = () => {
     const [ activeNav, setActiveNav ] = useState('technical')
-    const { report, loading, getResumePdf } = useInterview()
+    const { report, loading, error, getResumePdf } = useInterview()
     const { interviewId } = useParams()
     const navigate = useNavigate()
 
-    if (loading || !report) {
+    if (loading) {
         return (
             <main className='loading-screen'>
                 <h1>Loading your interview plan...</h1>
             </main>
         )
     }
+
+    // Loading finished but there is no report: show why instead of spinning forever
+    if (!report) {
+        return (
+            <main className='loading-screen'>
+                <h1>We couldn't open this interview plan</h1>
+                <p role='alert' style={{ marginTop: '1rem', color: '#ff6b6b' }}>
+                    {error || 'This interview plan is not available.'}
+                </p>
+                <button className='button primary-button' style={{ marginTop: '1.5rem' }} onClick={() => navigate('/')}>
+                    Back to my plans
+                </button>
+            </main>
+        )
+    }
+
+    const technicalQuestions = report.technicalQuestions ?? []
+    const behavioralQuestions = report.behavioralQuestions ?? []
+    const preparationPlan = report.preparationPlan ?? []
+    const skillGaps = report.skillGaps ?? []
 
     const scoreColor =
         report.matchScore >= 80 ? 'score--high' :
@@ -103,6 +123,9 @@ const Interview = () => {
                             </button>
                         ))}
                     </div>
+                    {error && (
+                        <p role='alert' style={{ color: '#ff6b6b', fontSize: '0.85rem', margin: '0 0 0.75rem 0' }}>{error}</p>
+                    )}
                     <button
                         onClick={() => { getResumePdf(interviewId) }}
                         className='button primary-button' >
@@ -119,10 +142,10 @@ const Interview = () => {
                         <section>
                             <div className='content-header'>
                                 <h2>Technical Questions</h2>
-                                <span className='content-header__count'>{report.technicalQuestions.length} questions</span>
+                                <span className='content-header__count'>{technicalQuestions.length} questions</span>
                             </div>
                             <div className='q-list'>
-                                {report.technicalQuestions.map((q, i) => (
+                                {technicalQuestions.map((q, i) => (
                                     <QuestionCard key={i} item={q} index={i} />
                                 ))}
                             </div>
@@ -133,10 +156,10 @@ const Interview = () => {
                         <section>
                             <div className='content-header'>
                                 <h2>Behavioral Questions</h2>
-                                <span className='content-header__count'>{report.behavioralQuestions.length} questions</span>
+                                <span className='content-header__count'>{behavioralQuestions.length} questions</span>
                             </div>
                             <div className='q-list'>
-                                {report.behavioralQuestions.map((q, i) => (
+                                {behavioralQuestions.map((q, i) => (
                                     <QuestionCard key={i} item={q} index={i} />
                                 ))}
                             </div>
@@ -147,10 +170,10 @@ const Interview = () => {
                         <section>
                             <div className='content-header'>
                                 <h2>Preparation Road Map</h2>
-                                <span className='content-header__count'>{report.preparationPlan.length}-day plan</span>
+                                <span className='content-header__count'>{preparationPlan.length}-day plan</span>
                             </div>
                             <div className='roadmap-list'>
-                                {report.preparationPlan.map((day) => (
+                                {preparationPlan.map((day) => (
                                     <RoadMapDay key={day.day} day={day} />
                                 ))}
                             </div>
@@ -179,7 +202,7 @@ const Interview = () => {
                     <div className='skill-gaps'>
                         <p className='skill-gaps__label'>Skill Gaps</p>
                         <div className='skill-gaps__list'>
-                            {report.skillGaps.map((gap, i) => (
+                            {skillGaps.map((gap, i) => (
                                 <span key={i} className={`skill-tag skill-tag--${gap.severity}`}>
                                     {gap.skill}
                                 </span>

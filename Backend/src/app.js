@@ -6,6 +6,8 @@ const mongoose = require('mongoose');
 const { createHttpLogger } = require('./v2/utils/logger');
 const { getCfg } = require('./v2/config/env');
 
+const { apiNotFoundHandler, globalErrorHandler } = require('./v2/middlewares/v1Http');
+
 const app = express();
 
 // Trust reverse proxy (e.g. Render, Railway, Fly, Nginx - configurable hops)
@@ -70,5 +72,9 @@ const v2Router = require('./v2/routes/v2.routes');
 app.use('/api/auth', authRouter);
 app.use('/api/interview', interviewRouter);
 app.use('/api/v2', v2Router);
+
+// Unknown /api paths -> JSON 404; any error not handled by a router -> consistent JSON error
+app.use('/api', apiNotFoundHandler);
+app.use(globalErrorHandler);
 
 module.exports = app;

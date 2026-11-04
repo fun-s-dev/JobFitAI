@@ -3,7 +3,10 @@ const multer = require("multer");
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 3 * 1024 * 1024 // 3MB limit
+        fileSize: 3 * 1024 * 1024, // 3MB limit
+        files: 1,
+        fields: 10,
+        fieldSize: 64 * 1024 // text fields (job/self description) are validated to <= 5000 chars later
     },
     fileFilter: (req, file, cb) => {
         if (file.mimetype !== "application/pdf") {

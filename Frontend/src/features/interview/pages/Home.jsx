@@ -1,44 +1,27 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useContext } from 'react'
 import "../style/interview.scss"
 import { useInterview } from '../hooks/useInterview.js'
 import { useNavigate } from 'react-router'
+import { validateReportInput, REPORT_LIMITS } from '../utils/validateReportInput.js'
+import { AuthContext } from '../../auth/auth.context.jsx'
 
 const Home = () => {
 
-    const { loading, generateReport,reports } = useInterview()
+    const { generating, error, generateReport, reports, removeReport, removeAccount } = useInterview()
+    const authContext = useContext(AuthContext)
+    const [ deletePassword, setDeletePassword ] = useState("")
+    const [ isDeletingAccount, setIsDeletingAccount ] = useState(false)
     const [ jobDescription, setJobDescription ] = useState("")
     const [ selfDescription, setSelfDescription ] = useState("")
+    const [ resumeFile, setResumeFile ] = useState(null)
+    const [ fieldErrors, setFieldErrors ] = useState({})
     const [ isWakingUp, setIsWakingUp ] = useState(false)
-    const [ selectedFileName, setSelectedFileName ] = useState("")
     const resumeInputRef = useRef()
-
-    const handleLoadDemoResume = async (e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        try {
-            const res = await fetch('/api/v2/demo/resume');
-            if (res.ok) {
-                const blob = await res.blob();
-                const file = new File([blob], 'my-resume.pdf', { type: 'application/pdf' });
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                if (resumeInputRef.current) {
-                    resumeInputRef.current.files = dt.files;
-                }
-                setSelectedFileName('my-resume.pdf');
-            }
-        } catch (err) {
-            console.error('Failed to load demo resume', err);
-        }
-    };
-
     const navigate = useNavigate()
 
     useEffect(() => {
         let timer;
-        if (loading) {
+        if (generating) {
             timer = setTimeout(() => {
                 setIsWakingUp(true);
             }, 3000);
@@ -46,10 +29,34 @@ const Home = () => {
             setIsWakingUp(false);
         }
         return () => clearTimeout(timer);
-    }, [loading]);
+    }, [generating]);
+
+    const handleFileChange = (e) => {
+        const file = e.target.files && e.target.files[0] ? e.target.files[0] : null
+        setResumeFile(file)
+        setFieldErrors((prev) => ({ ...prev, resume: undefined, profile: undefined }))
+    }
+
+    const handleRemoveFile = (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setResumeFile(null)
+        if (resumeInputRef.current) {
+            resumeInputRef.current.value = ""
+        }
+    }
 
     const handleGenerateReport = async () => {
-        const resumeFile = resumeInputRef.current.files[ 0 ]
+        if (generating) {
+            return
+        }
+
+        const { valid, errors } = validateReportInput({ jobDescription, selfDescription, resumeFile })
+        setFieldErrors(errors)
+        if (!valid) {
+            return
+        }
+
         const data = await generateReport({ jobDescription, selfDescription, resumeFile })
         if (!data?._id) {
             return
@@ -57,10 +64,44 @@ const Home = () => {
         navigate(`/interview/${data._id}`)
     }
 
-    if (loading) {
+    const handleDeleteReport = async (e, report) => {
+        e.stopPropagation()
+        const confirmed = window.confirm(
+            `Delete "${report.title || 'this interview plan'}" permanently? This also removes its resume text, drafts and verification results.`
+        )
+        if (confirmed) {
+            await removeReport(report._id)
+        }
+    }
+
+    const handleDeleteAccount = async (e) => {
+        e.preventDefault()
+        if (!deletePassword || isDeletingAccount) {
+            return
+        }
+        const confirmed = window.confirm(
+            'Permanently delete your account and ALL of your data (plans, resume text, drafts, verification results, GitHub connection)? This cannot be undone.'
+        )
+        if (!confirmed) {
+            return
+        }
+        setIsDeletingAccount(true)
+        const deleted = await removeAccount(deletePassword)
+        setIsDeletingAccount(false)
+        setDeletePassword("")
+        if (deleted && authContext && typeof authContext.setUser === 'function') {
+            // The session is already ended server-side; clearing the user sends the app to the login page
+            authContext.setUser(null)
+        }
+    }
+
+    if (generating) {
         return (
             <main className='loading-screen'>
-                <h1>Loading your interview plan...</h1>
+                <h1>Building your interview plan...</h1>
+                <p style={{ marginTop: '1rem', color: '#888', fontSize: '0.95rem' }}>
+                    This usually takes up to 30 seconds. Please keep this page open.
+                </p>
                 {isWakingUp && (
                     <p style={{ marginTop: '1rem', color: '#888', fontSize: '0.95rem' }}>
                         Server is waking up (free hosting, up to a minute)... Please wait while instances initialize.
@@ -79,6 +120,13 @@ const Home = () => {
                 <p>Let our AI analyze the job requirements and your unique profile to build a winning strategy.</p>
             </header>
 
+            {/* Server / generation error */}
+            {error && (
+                <div role='alert' className='form-error form-error--banner' style={{ color: '#ff6b6b', margin: '0 0 1rem 0' }}>
+                    {error}
+                </div>
+            )}
+
             {/* Main Card */}
             <div className='interview-card'>
                 <div className='interview-card__body'>
@@ -93,12 +141,17 @@ const Home = () => {
                             <span className='badge badge--required'>Required</span>
                         </div>
                         <textarea
-                            onChange={(e) => { setJobDescription(e.target.value) }}
+                            value={jobDescription}
+                            onChange={(e) => { setJobDescription(e.target.value); setFieldErrors((prev) => ({ ...prev, jobDescription: undefined })) }}
                             className='panel__textarea'
+                            aria-label='Target job description'
                             placeholder={`Paste the full job description here...\ne.g. 'Senior Frontend Engineer at Google requires proficiency in React, TypeScript, and large-scale system design...'`}
-                            maxLength={5000}
+                            maxLength={REPORT_LIMITS.JOB_DESCRIPTION_MAX}
                         />
-                        <div className='char-counter'>{jobDescription.length} / 5000 chars</div>
+                        <div className='char-counter'>{jobDescription.length} / {REPORT_LIMITS.JOB_DESCRIPTION_MAX} chars</div>
+                        {fieldErrors.jobDescription && (
+                            <p role='alert' className='form-error' style={{ color: '#ff6b6b', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>{fieldErrors.jobDescription}</p>
+                        )}
                     </div>
 
                     {/* Vertical Divider */}
@@ -115,50 +168,36 @@ const Home = () => {
 
                         {/* Upload Resume */}
                         <div className='upload-section'>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <label className='section-label' style={{ marginBottom: 0 }}>
-                                    Upload Resume
-                                    <span className='badge badge--best'>Best Results</span>
-                                </label>
-                                <button
-                                    type='button'
-                                    id='load-demo-resume-btn'
-                                    onClick={handleLoadDemoResume}
-                                    style={{
-                                        background: 'transparent',
-                                        border: '1px dashed #4f46e5',
-                                        color: '#818cf8',
-                                        borderRadius: '4px',
-                                        fontSize: '0.75rem',
-                                        padding: '2px 8px',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    Use my-resume.pdf
-                                </button>
-                            </div>
+                            <label className='section-label'>
+                                Upload Resume
+                                <span className='badge badge--best'>Best Results</span>
+                            </label>
                             <label className='dropzone' htmlFor='resume'>
                                 <span className='dropzone__icon'>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" /></svg>
                                 </span>
                                 <p className='dropzone__title' id='dropzone-file-name'>
-                                    {selectedFileName ? `Selected: ${selectedFileName}` : 'Click to upload or drag & drop'}
+                                    {resumeFile ? `Selected: ${resumeFile.name}` : 'Click to upload or drag & drop'}
                                 </p>
-                                <p className='dropzone__subtitle'>{selectedFileName ? 'my-resume.pdf attached' : 'PDF only (Max 3MB)'}</p>
+                                <p className='dropzone__subtitle'>{resumeFile ? 'PDF attached' : 'PDF only (Max 3MB)'}</p>
                                 <input
                                     ref={resumeInputRef}
                                     hidden
                                     type='file'
                                     id='resume'
                                     name='resume'
-                                    accept='.pdf'
-                                    onChange={(e) => {
-                                        if (e.target.files && e.target.files[0]) {
-                                            setSelectedFileName(e.target.files[0].name);
-                                        }
-                                    }}
+                                    accept='.pdf,application/pdf'
+                                    onChange={handleFileChange}
                                 />
                             </label>
+                            {resumeFile && (
+                                <button type='button' onClick={handleRemoveFile} className='button secondary-button' style={{ marginTop: '0.5rem' }}>
+                                    Remove file
+                                </button>
+                            )}
+                            {fieldErrors.resume && (
+                                <p role='alert' className='form-error' style={{ color: '#ff6b6b', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>{fieldErrors.resume}</p>
+                            )}
                         </div>
 
                         {/* OR Divider */}
@@ -168,12 +207,16 @@ const Home = () => {
                         <div className='self-description'>
                             <label className='section-label' htmlFor='selfDescription'>Quick Self-Description</label>
                             <textarea
-                                onChange={(e) => { setSelfDescription(e.target.value) }}
+                                value={selfDescription}
+                                onChange={(e) => { setSelfDescription(e.target.value); setFieldErrors((prev) => ({ ...prev, profile: undefined })) }}
                                 id='selfDescription'
                                 name='selfDescription'
                                 className='panel__textarea panel__textarea--short'
                                 placeholder="Briefly describe your experience, key skills, and years of experience if you don't have a resume handy..."
                             />
+                            {fieldErrors.profile && (
+                                <p role='alert' className='form-error' style={{ color: '#ff6b6b', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>{fieldErrors.profile}</p>
+                            )}
                         </div>
 
                         {/* Info Box */}
@@ -191,6 +234,7 @@ const Home = () => {
                     <span className='footer-info'>AI-Powered Strategy Generation &bull; Approx 30s</span>
                     <button
                         onClick={handleGenerateReport}
+                        disabled={generating}
                         className='generate-btn'>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" /></svg>
                         Generate My Interview Strategy
@@ -208,15 +252,45 @@ const Home = () => {
                                 <h3>{report.title || 'Untitled Position'}</h3>
                                 <p className='report-meta'>Generated on {new Date(report.createdAt).toLocaleDateString()}</p>
                                 <p className={`match-score ${report.matchScore >= 80 ? 'score--high' : report.matchScore >= 60 ? 'score--mid' : 'score--low'}`}>Match Score: {report.matchScore}%</p>
+                                <button
+                                    type='button'
+                                    className='button secondary-button'
+                                    aria-label={`Delete ${report.title || 'interview plan'}`}
+                                    onClick={(e) => handleDeleteReport(e, report)}
+                                >
+                                    Delete
+                                </button>
                             </li>
                         ))}
                     </ul>
                 </section>
             )}
 
+            {/* Privacy: delete account and all data */}
+            <details className='account-deletion' style={{ margin: '1.5rem 0' }}>
+                <summary>Delete my account and data</summary>
+                <form onSubmit={handleDeleteAccount} style={{ marginTop: '0.75rem' }}>
+                    <p style={{ fontSize: '0.85rem', color: '#9aa4b2' }}>
+                        This permanently removes your plans, resume text, drafts, verification results and GitHub
+                        connection. Enter your password to confirm.
+                    </p>
+                    <input
+                        type='password'
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        placeholder='Your password'
+                        aria-label='Password to confirm account deletion'
+                        autoComplete='current-password'
+                    />{' '}
+                    <button type='submit' className='button secondary-button' disabled={!deletePassword || isDeletingAccount}>
+                        {isDeletingAccount ? 'Deleting…' : 'Delete my account'}
+                    </button>
+                </form>
+            </details>
+
             {/* Page Footer */}
             <footer className='page-footer'>
-                <span>JobFitAI v2 · AI-Assisted Resume Verification</span>
+                <span>JobFitAI · AI-Assisted Resume Tailoring &amp; Consistency Checking</span>
             </footer>
         </div>
     )

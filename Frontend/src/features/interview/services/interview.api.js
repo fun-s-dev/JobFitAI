@@ -3,13 +3,18 @@ import { api } from "../../../services/apiClient";
 
 /**
  * @description Service to generate interview report based on user self description, resume and job description.
+ * Only fields that have a value are sent (a missing file must not be sent as the string "undefined").
  */
 export const generateInterviewReport = async ({ jobDescription, selfDescription, resumeFile }) => {
 
     const formData = new FormData()
     formData.append("jobDescription", jobDescription)
-    formData.append("selfDescription", selfDescription)
-    formData.append("resume", resumeFile)
+    if (selfDescription && selfDescription.trim()) {
+        formData.append("selfDescription", selfDescription)
+    }
+    if (resumeFile) {
+        formData.append("resume", resumeFile)
+    }
 
     const response = await api.post("/api/interview/", formData, {
         headers: {
@@ -43,7 +48,28 @@ export const getAllInterviewReports = async () => {
 
 
 /**
+ * @description Permanently deletes a report and everything derived from it.
+ */
+export const deleteInterviewReport = async (interviewId) => {
+    const response = await api.delete(`/api/interview/report/${interviewId}`)
+
+    return response.data
+}
+
+
+/**
+ * @description Permanently deletes the logged-in account and all of its data (password required).
+ */
+export const deleteAccount = async ({ password }) => {
+    const response = await api.delete("/api/auth/account", { data: { password } })
+
+    return response.data
+}
+
+
+/**
  * @description Service to generate resume pdf based on user self description, resume content and job description.
+ * LEGACY: removed together with the backend route once the V2 grounded export is verified.
  */
 export const generateResumePdf = async ({ interviewReportId }) => {
     const response = await api.post(`/api/interview/resume/pdf/${interviewReportId}`, null, {

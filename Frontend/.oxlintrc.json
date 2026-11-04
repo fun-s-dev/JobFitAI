@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "env": {
+    "browser": true,
+    "es2024": true
+  },
+  "rules": {
+    "no-undef": "error"
+  },
+  "overrides": [
+    {
+      "files": ["test/**", "vite.config.js"],
+      "env": {
+        "node": true,
+        "browser": true,
+        "es2024": true
+      }
+    }
+  ]
+}

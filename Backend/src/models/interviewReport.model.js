@@ -98,6 +98,9 @@ const interviewReportSchema = new mongoose.Schema({
     timestamps: true
 })
 
+// Every read in the app filters by owner and lists newest first
+interviewReportSchema.index({ user: 1, createdAt: -1 })
+
 
 const interviewReportModel = mongoose.model("InterviewReport", interviewReportSchema);
 

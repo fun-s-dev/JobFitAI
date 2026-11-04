@@ -1,8 +1,11 @@
+const crypto = require('node:crypto');
 const userModel = require('../models/user.model');
+const { createUserDataService, UserDataError } = require('../v2/services/userData.service');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const tokenBlacklistModel = require('../models/blacklist.model');
 const { getCfg } = require('../v2/config/env');
+const { sendV1Error } = require('../v2/middlewares/v1Http');
 
 function getCookieOptions() {
     return {
@@ -12,10 +15,27 @@ function getCookieOptions() {
         maxAge: 24 * 60 * 60 * 1000
     };
 }
+
+/** Constant-time string comparison (avoids leaking the invite code through response timing). */
+function safeEqual(a, b) {
+    const left = crypto.createHash('sha256').update(String(a)).digest();
+    const right = crypto.createHash('sha256').update(String(b)).digest();
+    return crypto.timingSafeEqual(left, right);
+}
+
+function signToken(user) {
+    return jwt.sign(
+        {id: user._id, username: user.username },
+        process.env.JWT_SECRET,
+        {expiresIn: '1d'}
+    );
+}
+
 /**
  * 
  * @name registerUserController
  * @description register a new user, expect username, email and password in the request body
+ * (already validated, trimmed and normalized by validateV1 + registerBodySchema)
  * @access Public
  * 
  */
@@ -32,22 +52,17 @@ async function registerUserController(req,res){
 
     if (!isRegistrationOpen) {
         if (!requiredInviteCode) {
-            return res.status(403).json({ message: "Registration is currently closed" });
+            return sendV1Error(req, res, 403, 'REGISTRATION_CLOSED', "Registration is currently closed");
         }
-        if (!inviteCode || inviteCode !== requiredInviteCode) {
-            return res.status(403).json({ message: "Registration is closed. A valid invite code is required." });
+        if (!inviteCode || !safeEqual(inviteCode, requiredInviteCode)) {
+            return sendV1Error(req, res, 403, 'INVITE_CODE_REQUIRED', "Registration is closed. A valid invite code is required.");
         }
-    }
-
-    if(!username || !email || !password){
-        return res.status(400).json({message: "All fields are required"})
     }
 
     const isUserAlreadyExists = await userModel.findOne({$or: [{email}, {username}]})
 
     if(isUserAlreadyExists){
-        
-        return res.status(400).json({message: "Account with this email or username already exists"})
+        return sendV1Error(req, res, 400, 'ACCOUNT_EXISTS', "Account with this email or username already exists");
     }
 
     const hash = await bcrypt.hash(password, 10)
@@ -57,14 +72,18 @@ async function registerUserController(req,res){
         email,
         password: hash
     })
-   
-    
-    await user.save() // save the user to the database
-    const token = jwt.sign(
-        {id: user._id, username: user.username },
-        process.env.JWT_SECRET,
-        {expiresIn: '1d'}
-    )
+
+    try {
+        await user.save() // save the user to the database
+    } catch (err) {
+        // Two simultaneous sign-ups can both pass the check above; the unique index decides.
+        if (err && err.code === 11000) {
+            return sendV1Error(req, res, 400, 'ACCOUNT_EXISTS', "Account with this email or username already exists");
+        }
+        throw err;
+    }
+
+    const token = signToken(user)
 
     res.cookie('token', token, getCookieOptions())
     
@@ -88,23 +107,22 @@ async function registerUserController(req,res){
 async function loginUserController(req,res){
     const {email, password} = req.body;
 
-    const user = await userModel.findOne({email})
+    // New accounts store lowercase emails. Accounts created before normalization may have mixed case,
+    // so match either the normalized or the exact value the user typed.
+    const normalizedEmail = email.toLowerCase();
+    const user = await userModel.findOne({ email: { $in: [normalizedEmail, email] } })
 
     if(!user){
-        return res.status(400).json({message: "Invalid email or password"})
+        return sendV1Error(req, res, 400, 'INVALID_CREDENTIALS', "Invalid email or password");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password)
 
     if(!isPasswordValid){
-        return res.status(400).json({message: "Invalid email or password"})
+        return sendV1Error(req, res, 400, 'INVALID_CREDENTIALS', "Invalid email or password");
     }
 
-    const token = jwt.sign(
-        {id: user._id, username: user.username },
-        process.env.JWT_SECRET,
-        {expiresIn: '1d'}
-    )
+    const token = signToken(user)
 
     res.cookie('token', token, getCookieOptions())
 
@@ -125,7 +143,7 @@ async function loginUserController(req,res){
  */
 async function logoutUserController(req,res){
     const token = req.cookies.token;
-    if(token){
+    if(typeof token === 'string' && token){
         await tokenBlacklistModel.create({token})
     }
 
@@ -134,6 +152,70 @@ async function logoutUserController(req,res){
     res.status(200).json({message: "User logged out successfully"})
 }
 
+
+let activeUserDataService = null;
+
+/** Built lazily so requiring this module never loads the V2 GitHub controller during app startup order. */
+function getUserDataService() {
+    if (!activeUserDataService) {
+        activeUserDataService = createUserDataService({
+            models: {
+                InterviewReport: require('../models/interviewReport.model'),
+                ResumeDraft: require('../v2/models/resumeDraft.model'),
+                VerificationRun: require('../v2/models/verificationRun.model'),
+                ResumeClaim: require('../v2/models/resumeClaim.model'),
+                Job: require('../v2/models/job'),
+                ReportProjectLink: require('../v2/models/reportProjectLink.model'),
+                LlmCall: require('../v2/models/llmCall.model'),
+                GithubOauthState: require('../v2/models/githubOauthState.model'),
+                User: userModel,
+            },
+            disconnectGithub: (userId) => require('../v2/controllers/github.controller').disconnectGithubForUser(userId),
+        });
+    }
+    return activeUserDataService;
+}
+
+/** Shared with the interview controller (report deletion). */
+function setUserDataService(service) {
+    activeUserDataService = service || null;
+}
+
+/**
+ * @name deleteAccountController
+ * @description permanently delete the logged-in user and all their data. Requires the password again.
+ * @access private
+ */
+async function deleteAccountController(req, res) {
+    const user = await userModel.findById(req.user.id)
+
+    if (!user) {
+        return sendV1Error(req, res, 401, 'UNAUTHORIZED', "Account no longer exists.");
+    }
+
+    const passwordOk = await bcrypt.compare(req.body.password, user.password)
+    if (!passwordOk) {
+        return sendV1Error(req, res, 400, 'INVALID_PASSWORD', "Incorrect password.");
+    }
+
+    try {
+        await getUserDataService().deleteAccount({ userId: user._id })
+    } catch (err) {
+        if (err instanceof UserDataError) {
+            return sendV1Error(req, res, err.status, err.code, err.message);
+        }
+        throw err
+    }
+
+    // End the session: blacklist the current token and clear the cookie
+    const token = req.cookies.token;
+    if (typeof token === 'string' && token) {
+        await tokenBlacklistModel.create({token})
+    }
+    res.clearCookie('token', getCookieOptions())
+
+    res.status(200).json({ message: "Your account and all of its data were deleted." })
+}
 
 /**
  * @name getMeController
@@ -144,7 +226,10 @@ async function getMeController(req, res) {
 
     const user = await userModel.findById(req.user.id)
 
-
+    // A valid token for a deleted account must not crash the request
+    if (!user) {
+        return sendV1Error(req, res, 401, 'UNAUTHORIZED', "Account no longer exists.");
+    }
 
     res.status(200).json({
         message: "User details fetched successfully",
@@ -162,6 +247,8 @@ module.exports = {
     registerUserController,
     loginUserController,
     logoutUserController,
-    getMeController
+    getMeController,
+    deleteAccountController,
+    getUserDataService,
+    setUserDataService
 }
-

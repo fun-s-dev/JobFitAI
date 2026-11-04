@@ -11,6 +11,8 @@ const blacklistTokenSchema = new mongoose.Schema({
     })
 
 blacklistTokenSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
+// authUser looks the token up on every authenticated request
+blacklistTokenSchema.index({ token: 1 });
 
 const tokenBlacklistModel = mongoose.model("blacklistToken", blacklistTokenSchema ) //iss collection ka naam blacklistTokens hoga
 

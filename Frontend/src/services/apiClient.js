@@ -7,7 +7,7 @@ import axios from 'axios';
  * - withCredentials: true ensures HTTP-only session cookies are passed on all requests
  */
 const rawBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
-const API_BASE = rawBase.replace(/\/$/, '');
+export const API_BASE = rawBase.replace(/\/$/, '');
 
 export const api = axios.create({
   baseURL: API_BASE || undefined,
