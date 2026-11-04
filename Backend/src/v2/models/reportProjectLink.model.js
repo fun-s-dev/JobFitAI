@@ -28,6 +28,21 @@ const reportProjectLinkSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    // Repository CONTROL evidence. Links created before this field existed have no `control`
+    // and are treated as unverified. Control is never evidence of code AUTHORSHIP.
+    control: {
+      verified: { type: Boolean, default: false },
+      method: {
+        type: String,
+        enum: ['github_app_identity', 'pasted_public_url'],
+        default: 'pasted_public_url',
+      },
+      githubUserId: { type: Number, default: null },
+      githubLogin: { type: String, default: null },
+      repoId: { type: Number, default: null },
+      verifiedAt: { type: Date, default: null },
+    },
+    authorship: { type: String, enum: ['not_assessed'], default: 'not_assessed' },
   },
   { timestamps: true }
 );

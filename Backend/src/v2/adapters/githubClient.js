@@ -23,6 +23,14 @@ class GitHubApiError extends Error {
   }
 }
 
+/** 401 from GitHub: the token is expired, revoked or invalid (callers may refresh once, then reconnect). */
+class GitHubAuthError extends GitHubApiError {
+  constructor(message = 'GitHub rejected the credentials') {
+    super(message, 401);
+    this.name = 'GitHubAuthError';
+  }
+}
+
 /**
  * Creates a GitHub API client wrapper.
  * Dynamically imports ESM-only @octokit/rest.
@@ -65,6 +73,9 @@ function createGitHubClient(options = {}) {
     }
     if (status === 404) {
       throw new RepoNotFoundError(err.message || 'Repository not found or access denied');
+    }
+    if (status === 401) {
+      throw new GitHubAuthError(err.message || 'Bad credentials');
     }
     throw new GitHubApiError(err.message || 'GitHub request failed', status || 500);
   }
@@ -179,12 +190,71 @@ function createGitHubClient(options = {}) {
     }
   }
 
+  /**
+   * The GitHub account the (user access) token belongs to. Used to bind a connection to a GitHub
+   * identity: the numeric `id` is stable, the `login` can be renamed.
+   */
+  async function getAuthenticatedUser() {
+    const octokit = await getOctokit();
+    try {
+      const res = await octokit.rest.users.getAuthenticated();
+      return {
+        id: res.data.id,
+        login: res.data.login,
+        type: res.data.type,
+        avatarUrl: res.data.avatar_url || null,
+      };
+    } catch (err) {
+      handleHttpError(err);
+    }
+  }
+
+  /**
+   * Public repositories owned by `login` (GET /users/{login}/repos?type=owner). This endpoint only ever
+   * returns public repositories, so private ones are not listed to an identity-only token.
+   * Bounded to maxPages * 100 repositories.
+   */
+  async function listUserPublicRepos({ login, maxPages = 3 }) {
+    const octokit = await getOctokit();
+    const repos = [];
+    try {
+      for (let page = 1; page <= maxPages; page++) {
+        const res = await octokit.rest.repos.listForUser({
+          username: login,
+          type: 'owner',
+          sort: 'pushed',
+          per_page: 100,
+          page,
+        });
+        repos.push(...res.data);
+        if (res.data.length < 100) break;
+      }
+      return repos;
+    } catch (err) {
+      handleHttpError(err);
+    }
+  }
+
+  /** One repository by its numeric id (stable across renames). 404 for private repositories too. */
+  async function getRepositoryById({ repoId }) {
+    const octokit = await getOctokit();
+    try {
+      const res = await octokit.request('GET /repositories/{id}', { id: repoId });
+      return res.data;
+    } catch (err) {
+      handleHttpError(err);
+    }
+  }
+
   return {
     getRepoMetadata,
     listLanguages,
     getHeadCommitSha,
     getTree,
     getBlobContent,
+    getAuthenticatedUser,
+    listUserPublicRepos,
+    getRepositoryById,
   };
 }
 
@@ -193,4 +263,5 @@ module.exports = {
   GitHubRateLimitError,
   RepoNotFoundError,
   GitHubApiError,
+  GitHubAuthError,
 };

@@ -13,6 +13,22 @@ const DefaultGithubAnalysis = require('../models/githubAnalysis');
 const DefaultReportProjectLink = require('../models/reportProjectLink.model');
 
 /**
+ * Builds the ReportProjectLink upsert for an analysis.
+ * Control evidence (is the repository controlled by the user's verified GitHub account?) is recorded on
+ * the link. A verified link is never downgraded by a later unverified (pasted URL) request.
+ * Authorship is never assessed here.
+ */
+function buildLinkUpdate({ userId, repoUrl, control }) {
+  const base = { user: userId, repoUrl, linkedAt: new Date() };
+  if (control && control.verified === true) {
+    return { $set: { ...base, control, authorship: 'not_assessed' } };
+  }
+  return {
+    $set: base,
+    $setOnInsert: { control: { verified: false, method: 'pasted_public_url' }, authorship: 'not_assessed' },
+  };
+}
+/**
  * Creates GitHub evidence service with dependency injection.
  */
 function createGitHubEvidenceService(deps = {}) {
@@ -30,14 +46,16 @@ function createGitHubEvidenceService(deps = {}) {
    * @param {Function} [params.onProgress] - ({ done, total }) => void
    * @returns {Promise<{ analysis: object, cached: boolean }>}
    */
-  async function analyzeRepository({ repoUrl, reportId, userId, onProgress }) {
+  async function analyzeRepository({ repoUrl, reportId, userId, onProgress, githubClient: clientOverride = null, control = null }) {
+    // A per-call client lets verified users read with their own (higher-limit) GitHub token
+    const gh = clientOverride || client;
     // 1. Validate URL strictly
     const { owner, repo, repositoryFullName } = parseRepoUrl(repoUrl);
 
     // 2. Fetch metadata
     let meta;
     try {
-      meta = await client.getRepoMetadata({ owner, repo });
+      meta = await gh.getRepoMetadata({ owner, repo });
     } catch (err) {
       if (err instanceof RepoNotFoundError) {
         // Deleted or made private repo -> mark existing cached analyses stale
@@ -52,7 +70,7 @@ function createGitHubEvidenceService(deps = {}) {
           if (reportId && userId) {
             await LinkModel.findOneAndUpdate(
               { report: reportId, analysisId: existingCache._id },
-              { $set: { user: userId, repoUrl, linkedAt: new Date() } },
+              buildLinkUpdate({ userId, repoUrl, control }),
               { upsert: true, returnDocument: 'after' }
             );
           }
@@ -78,7 +96,7 @@ function createGitHubEvidenceService(deps = {}) {
     const defaultBranch = meta.data.default_branch || 'main';
     let commitSha;
     try {
-      commitSha = await client.getHeadCommitSha({ owner, repo, branch: defaultBranch });
+      commitSha = await gh.getHeadCommitSha({ owner, repo, branch: defaultBranch });
     } catch (err) {
       if (err instanceof GitHubRateLimitError) {
         const existingCache = await AnalysisModel.findOne({ repositoryFullName, analysisStatus: 'complete' }).sort({ createdAt: -1 });
@@ -86,7 +104,7 @@ function createGitHubEvidenceService(deps = {}) {
           if (reportId && userId) {
             await LinkModel.findOneAndUpdate(
               { report: reportId, analysisId: existingCache._id },
-              { $set: { user: userId, repoUrl, linkedAt: new Date() } },
+              buildLinkUpdate({ userId, repoUrl, control }),
               { upsert: true, returnDocument: 'after' }
             );
           }
@@ -102,7 +120,7 @@ function createGitHubEvidenceService(deps = {}) {
       if (reportId && userId) {
         await LinkModel.findOneAndUpdate(
           { report: reportId, analysisId: cachedDoc._id },
-          { $set: { user: userId, repoUrl, linkedAt: new Date() } },
+          buildLinkUpdate({ userId, repoUrl, control }),
           { upsert: true, returnDocument: 'after' }
         );
       }
@@ -110,10 +128,10 @@ function createGitHubEvidenceService(deps = {}) {
     }
 
     // 5. Languages
-    const languages = await client.listLanguages({ owner, repo });
+    const languages = await gh.listLanguages({ owner, repo });
 
     // 6. Tree fetch and allowlist filtering (caps: 40 files, 500 KB)
-    const treeResult = await client.getTree({ owner, repo, treeSha: commitSha, recursive: true });
+    const treeResult = await gh.getTree({ owner, repo, treeSha: commitSha, recursive: true });
     const allowedEntries = filterAllowedTree(treeResult.tree || []);
 
     const dependencies = [];
@@ -128,7 +146,7 @@ function createGitHubEvidenceService(deps = {}) {
         onProgress({ done: i + 1, total: allowedEntries.length });
       }
 
-      const rawBlob = await client.getBlobContent({ owner, repo, fileSha: entry.sha });
+      const rawBlob = await gh.getBlobContent({ owner, repo, fileSha: entry.sha });
       const cleanText = scrubSecrets(rawBlob);
       const baseName = path.basename(entry.path).toLowerCase();
 
@@ -180,7 +198,7 @@ function createGitHubEvidenceService(deps = {}) {
     if (reportId && userId) {
       await LinkModel.findOneAndUpdate(
         { report: reportId, analysisId: savedAnalysis._id },
-        { $set: { user: userId, repoUrl, linkedAt: new Date() } },
+        buildLinkUpdate({ userId, repoUrl, control }),
         { upsert: true, returnDocument: 'after' }
       );
     }

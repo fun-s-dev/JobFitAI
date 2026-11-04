@@ -16,7 +16,7 @@ export default function GithubLinkForm({ reportId, onAnalysisComplete }) {
           const data = await getGitHubAnalysis(job.resultRef);
           setCompletedAnalysis(data.analysis);
           if (typeof onAnalysisComplete === 'function') {
-            onAnalysisComplete(data.analysis);
+            onAnalysisComplete(data.analysis, data.control);
           }
         }
       } catch (err) {
@@ -67,9 +67,11 @@ export default function GithubLinkForm({ reportId, onAnalysisComplete }) {
   return (
     <div className="github-link-form" role="region" aria-label="GitHub Repository Evidence">
       <div className="github-link-form__header">
-        <h3 className="github-link-form__title">Link GitHub Repository Evidence</h3>
+        <h3 className="github-link-form__title">Link a public repository by URL</h3>
         <p className="github-link-form__desc">
-          Provide a public GitHub repository to verify technologies, frameworks, and architecture patterns against source code and manifests without executing any code.
+          The repository is scanned (manifests and source structure, no code is executed) and shown here, but because
+          anyone can paste any URL, <strong>it does not count toward verification</strong>. To count a repository,
+          connect GitHub and select one you own.
         </p>
       </div>
 
@@ -132,6 +134,9 @@ export default function GithubLinkForm({ reportId, onAnalysisComplete }) {
             <span className="github-link-form__success-icon">✓</span>
             <div>
               <strong>Linked: {completedAnalysis.repositoryFullName}</strong>
+              <div className="github-link-form__success-meta">
+                <span>Ownership not verified: this repository does not count toward verification.</span>
+              </div>
               <div className="github-link-form__success-meta">
                 <span>Commit: {completedAnalysis.commitSha?.slice(0, 7)}</span>
                 <span>•</span>
