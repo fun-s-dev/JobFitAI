@@ -166,6 +166,7 @@ function getUserDataService() {
                 ResumeClaim: require('../v2/models/resumeClaim.model'),
                 Job: require('../v2/models/job'),
                 ReportProjectLink: require('../v2/models/reportProjectLink.model'),
+                RepoRanking: require('../v2/models/repoRanking.model'),
                 LlmCall: require('../v2/models/llmCall.model'),
                 GithubOauthState: require('../v2/models/githubOauthState.model'),
                 User: userModel,

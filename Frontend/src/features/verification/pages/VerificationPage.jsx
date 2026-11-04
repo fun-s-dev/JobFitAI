@@ -9,6 +9,7 @@ import SummaryBar from '../components/SummaryBar';
 import ClaimRow from '../components/ClaimRow';
 import GithubConnectPanel from '../components/GithubConnectPanel';
 import GithubProjectLinks from '../components/GithubProjectLinks';
+import ProjectRankingPanel from '../components/ProjectRankingPanel';
 import { useGithubLinks } from '../hooks/useGithubLinks';
 import { parseGithubConnectResult } from '../utils/githubConnectMessages';
 import {
@@ -369,6 +370,7 @@ export default function VerificationPage() {
             queryClient.invalidateQueries({ queryKey: ['githubLinks', reportId] });
           }}
         />
+        <ProjectRankingPanel reportId={reportId} />
         <GithubProjectLinks reportId={reportId} data={githubLinks.data} />
 
         {run?.config?.githubEvidence?.unmatchedAnalysisIds?.length > 0 && (

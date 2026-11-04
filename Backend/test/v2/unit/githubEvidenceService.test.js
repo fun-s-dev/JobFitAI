@@ -51,6 +51,7 @@ describe('services/githubEvidence.service (unit)', () => {
       repositoryFullName: 'fun-s-dev/JobFitAI',
       commitSha: 'sha999',
       analysisStatus: 'complete',
+      readmeChecked: true, // analysed after the README started being kept
       evidenceItems: [{ skill: 'Express', strength: 0.8 }],
     };
 
@@ -79,6 +80,76 @@ describe('services/githubEvidence.service (unit)', () => {
     expect(mockClient.getTree).not.toHaveBeenCalled();
     expect(mockClient.getBlobContent).not.toHaveBeenCalled();
     expect(mockLinkModel.findOneAndUpdate).toHaveBeenCalled();
+  });
+
+  it('re-analyses a cached analysis that was stored before the README was kept (readmeChecked false)', async () => {
+    mockClient.getRepoMetadata.mockResolvedValue({
+      notModified: false,
+      data: { private: false, archived: false, size: 1000, default_branch: 'main', description: 'My app' },
+    });
+    mockClient.getHeadCommitSha.mockResolvedValue('sha999');
+    mockClient.listLanguages.mockResolvedValue({ JavaScript: 10 });
+    mockClient.getTree.mockResolvedValue({
+      truncated: false,
+      tree: [
+        { path: 'docs/README.md', type: 'blob', size: 10, sha: 'deep' },
+        { path: 'README.md', type: 'blob', size: 10, sha: 'root' },
+      ],
+    });
+    mockClient.getBlobContent.mockImplementation(({ fileSha }) => (fileSha === 'root' ? '# Root readme' : '# Docs readme'));
+    // Old record: complete, but no README information
+    mockAnalysisModel.findOne.mockResolvedValue({ _id: 'old', analysisStatus: 'complete', evidenceItems: [] });
+    mockAnalysisModel.findOneAndUpdate.mockResolvedValue({ _id: 'new', analysisStatus: 'complete' });
+
+    const service = createGitHubEvidenceService({ githubClient: mockClient, GithubAnalysis: mockAnalysisModel, ReportProjectLink: mockLinkModel });
+    const result = await service.analyzeRepository({ repoUrl: 'https://github.com/fun-s-dev/JobFitAI' });
+
+    expect(result.cached).toBe(false);
+    expect(mockClient.getTree).toHaveBeenCalled();
+    const saved = mockAnalysisModel.findOneAndUpdate.mock.calls[0][1].$set;
+    expect(saved.readmeChecked).toBe(true);
+    expect(saved.readmePath).toBe('README.md'); // the root README wins over a deeper one
+    expect(saved.readmeText).toBe('# Root readme');
+    expect(saved.description).toBe('My app');
+  });
+
+  it('records that a repository has no README (checked, empty) so it is not re-analysed forever', async () => {
+    mockClient.getRepoMetadata.mockResolvedValue({
+      notModified: false,
+      data: { private: false, archived: false, size: 10, default_branch: 'main' },
+    });
+    mockClient.getHeadCommitSha.mockResolvedValue('sha1');
+    mockClient.listLanguages.mockResolvedValue({});
+    mockClient.getTree.mockResolvedValue({ truncated: false, tree: [{ path: 'package.json', type: 'blob', size: 10, sha: 'p' }] });
+    mockClient.getBlobContent.mockResolvedValue(JSON.stringify({ dependencies: { express: '^4' } }));
+    mockAnalysisModel.findOne.mockResolvedValue(null);
+    mockAnalysisModel.findOneAndUpdate.mockResolvedValue({ _id: 'x', analysisStatus: 'complete' });
+
+    const service = createGitHubEvidenceService({ githubClient: mockClient, GithubAnalysis: mockAnalysisModel, ReportProjectLink: mockLinkModel });
+    await service.analyzeRepository({ repoUrl: 'https://github.com/fun-s-dev/JobFitAI' });
+
+    const saved = mockAnalysisModel.findOneAndUpdate.mock.calls[0][1].$set;
+    expect(saved).toMatchObject({ readmeChecked: true, readmeText: null, readmePath: null });
+  });
+
+  it('keeps the README text bounded and scrubs secrets from it', async () => {
+    mockClient.getRepoMetadata.mockResolvedValue({
+      notModified: false,
+      data: { private: false, archived: false, size: 10, default_branch: 'main' },
+    });
+    mockClient.getHeadCommitSha.mockResolvedValue('sha2');
+    mockClient.listLanguages.mockResolvedValue({});
+    mockClient.getTree.mockResolvedValue({ truncated: false, tree: [{ path: 'README.md', type: 'blob', size: 10, sha: 'r' }] });
+    mockClient.getBlobContent.mockResolvedValue(`token ghp_${'a'.repeat(36)}\n` + 'x'.repeat(50000));
+    mockAnalysisModel.findOne.mockResolvedValue(null);
+    mockAnalysisModel.findOneAndUpdate.mockResolvedValue({ _id: 'y', analysisStatus: 'complete' });
+
+    const service = createGitHubEvidenceService({ githubClient: mockClient, GithubAnalysis: mockAnalysisModel, ReportProjectLink: mockLinkModel });
+    await service.analyzeRepository({ repoUrl: 'https://github.com/fun-s-dev/JobFitAI' });
+
+    const saved = mockAnalysisModel.findOneAndUpdate.mock.calls[0][1].$set;
+    expect(saved.readmeText.length).toBeLessThanOrEqual(12000);
+    expect(saved.readmeText).not.toContain('ghp_');
   });
 
   it('rejects private repositories', async () => {

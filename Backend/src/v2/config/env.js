@@ -88,6 +88,10 @@ const envSchema = z
     RATE_LIMIT_GITHUB_CONNECT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
     RATE_LIMIT_GITHUB_CONNECT_MAX: z.coerce.number().int().positive().default(30),
     USER_DAILY_GITHUB_ANALYSES: z.coerce.number().int().positive().default(20),
+    // Repository ranking: how many repositories are analysed and how many are pre-selected
+    USER_DAILY_RANKINGS: z.coerce.number().int().positive().default(5),
+    RANKING_MAX_REPOS: z.coerce.number().int().positive().max(30).default(15),
+    RANKING_TOP_N: z.coerce.number().int().positive().max(6).default(4),
   })
   .refine(
     (data) => data.THRESHOLD_VERIFIED > data.THRESHOLD_REVIEW,

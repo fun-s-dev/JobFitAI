@@ -12,6 +12,9 @@ const {
 const DefaultGithubAnalysis = require('../models/githubAnalysis');
 const DefaultReportProjectLink = require('../models/reportProjectLink.model');
 
+// Upper bound on the README text kept per analysis (about 30 retrieval chunks of 400 characters)
+const MAX_README_CHARS = 12000;
+
 /**
  * Builds the ReportProjectLink upsert for an analysis.
  * Control evidence (is the repository controlled by the user's verified GitHub account?) is recorded on
@@ -115,8 +118,9 @@ function createGitHubEvidenceService(deps = {}) {
     }
 
     // 4. Cache lookup: compound unique index { repositoryFullName, commitSha }
+    // An analysis stored before the README was kept (readmeChecked false) is re-run once to fill it in.
     const cachedDoc = await AnalysisModel.findOne({ repositoryFullName, commitSha });
-    if (cachedDoc && cachedDoc.analysisStatus === 'complete') {
+    if (cachedDoc && cachedDoc.analysisStatus === 'complete' && cachedDoc.readmeChecked === true) {
       if (reportId && userId) {
         await LinkModel.findOneAndUpdate(
           { report: reportId, analysisId: cachedDoc._id },
@@ -174,6 +178,11 @@ function createGitHubEvidenceService(deps = {}) {
       evidenceItems.push(...readmeHits);
     }
 
+    // 8.5 Keep the primary README (the one closest to the repository root) for ranking and retrieval
+    const primaryReadme = readmes
+      .filter((r) => typeof r.content === 'string' && r.content.trim().length > 0)
+      .sort((a, b) => a.path.split('/').length - b.path.split('/').length || a.path.localeCompare(b.path))[0];
+
     // 9. Persist analysis
     const updatePayload = {
       repositoryUrl: repoUrl,
@@ -183,6 +192,10 @@ function createGitHubEvidenceService(deps = {}) {
       languages,
       dependencies,
       evidenceItems,
+      description: typeof meta.data.description === 'string' ? meta.data.description.slice(0, 300) : null,
+      readmePath: primaryReadme ? primaryReadme.path : null,
+      readmeText: primaryReadme ? primaryReadme.content.slice(0, MAX_README_CHARS) : null,
+      readmeChecked: true,
       analysisStatus: 'complete',
       etag: meta.etag || null,
       analyzedAt: new Date(),
@@ -216,4 +229,6 @@ const defaultService = createGitHubEvidenceService();
 module.exports = {
   createGitHubEvidenceService,
   githubEvidenceService: defaultService,
+  buildLinkUpdate,
+  MAX_README_CHARS,
 };

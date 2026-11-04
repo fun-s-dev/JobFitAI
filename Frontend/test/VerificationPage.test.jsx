@@ -23,6 +23,9 @@ vi.mock('../src/features/interview/services/interview.api', () => ({
 vi.mock('../src/features/verification/components/GithubConnectPanel', () => ({
   default: () => <div data-testid='github-panel' />,
 }));
+vi.mock('../src/features/verification/components/ProjectRankingPanel', () => ({
+  default: () => <div data-testid='ranking-panel' />,
+}));
 
 import {
   getVerificationRun,

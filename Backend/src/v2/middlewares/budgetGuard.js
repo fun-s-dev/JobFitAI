@@ -152,6 +152,52 @@ function createBudgetGuardMiddleware({
     }
   }
 
+  /**
+   * Per-user daily cap on repository rankings (counts repo_ranking jobs since Pacific midnight,
+   * whatever their outcome). One ranking analyses up to RANKING_MAX_REPOS repositories.
+   */
+  async function guardUserDailyRankings(req, res, next) {
+    try {
+      const cfg = configGetter();
+      const userId = req.user ? (req.user._id || req.user.id) : null;
+      if (!userId) return next();
+
+      const midnight = getMidnightPacific(getNow());
+      const count = await jobModel.countDocuments({
+        user: userId,
+        type: 'repo_ranking',
+        createdAt: { $gte: midnight },
+      });
+
+      const maxLimit = process.env.USER_DAILY_RANKINGS !== undefined
+        ? parseInt(process.env.USER_DAILY_RANKINGS, 10)
+        : cfg.USER_DAILY_RANKINGS;
+
+      const result = checkBudget({
+        type: BUDGET_TYPES.USER_RANKINGS,
+        currentCount: count,
+        maxLimit,
+      });
+
+      if (!result.allowed) {
+        const requestId = req.id || req.headers['x-request-id'] || 'unknown';
+        return res.status(429).json({
+          code: 'DAILY_BUDGET_REACHED',
+          error: {
+            code: 'DAILY_BUDGET_REACHED',
+            message: result.error.message,
+            requestId,
+          },
+          message: result.error.message,
+        });
+      }
+
+      next();
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async function guardLlmGenerationBudget(req, res, next) {
     try {
       const cfg = configGetter();
@@ -234,6 +280,7 @@ function createBudgetGuardMiddleware({
     guardUserVerifications,
     guardUserDailyReports,
     guardUserDailyGithubAnalyses,
+    guardUserDailyRankings,
     guardLlmGenerationBudget,
     guardEmbeddingBudget,
   };
@@ -247,6 +294,7 @@ module.exports = {
   guardUserVerifications: defaultGuards.guardUserVerifications,
   guardUserDailyReports: defaultGuards.guardUserDailyReports,
   guardUserDailyGithubAnalyses: defaultGuards.guardUserDailyGithubAnalyses,
+  guardUserDailyRankings: defaultGuards.guardUserDailyRankings,
   guardLlmGenerationBudget: defaultGuards.guardLlmGenerationBudget,
   guardEmbeddingBudget: defaultGuards.guardEmbeddingBudget,
 };

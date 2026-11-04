@@ -104,6 +104,7 @@ flowchart TD
 - **Multi-Signal Consistency Checking**: Evaluates claims across three evidence classes (your resume and self-description, dependency manifests, and static AST code structures). Repository evidence only counts toward the score when ownership of the repository is verified through GitHub Connect, and it only supports the claims of the draft project the repository belongs to (matched by name, or chosen by you). A repository never vouches for a different project, even one that uses the same technology.
 - **GitHub Connect (GitHub App user authorization)**: Sign in with GitHub (PKCE + `state`, no repository permissions requested) to prove you own a public repository, select it, and analyze it. Tokens are encrypted at rest, never sent to the browser, refreshed automatically, and revocable (Disconnect). Private repositories are not supported in this version. Pasting a repository URL is not supported: repositories can only be added through GitHub Connect.
 - **Complete Grounded Export**: Besides claim-checked bullets, the exported resume includes name, contact details, skills and education only when they appear in your resume; the AI-written summary is left out. Every dropped item is listed with a reason.
+- **Best Projects for a Job**: after connecting GitHub, a background job analyses up to 15 of your public repositories (static analysis, nothing executed), skips any without a README and tells you so, extracts the job's requirements with one Gemini call, embeds the requirements and each repository's README, description and technology stack, and ranks the repositories by how well they cover what the job asks for. You see a strong/partial/weak match level and the actual passages that matched, then confirm or swap up to 4 projects. The scale was calibrated on real `gemini-embedding-001` vectors (unrelated text still scores about 0.8 cosine) using a small sample, so treat the levels as a guide.
 - **Data Deletion**: Delete a plan (with its drafts, claims and jobs) or your whole account and all its data from the UI.
 - **Prompt & Contradiction Defense**: Defends against prompt injection within job descriptions and adversarial README instructions. Contradictory evidence overrides self-reported claims.
 - **Quote Grounding Guardrails**: Normalizes and asserts verbatim quote overlap between NLI entailment quotes and source text (Levenshtein similarity $\ge 0.90$).
@@ -167,6 +168,7 @@ All routes are under `/api`. Session cookie required except register and login.
 | Drafts and export (V2) | `POST /v2/drafts/:reportId`, `GET /v2/drafts/:reportId`, `GET /v2/drafts/:reportId/print`, `POST /v2/drafts/:reportId/pdf`, `GET /v2/drafts/:reportId/grounded` |
 | Verification (V2) | `POST /v2/verification/:reportId`, `GET /v2/verification/:reportId`, `GET` and `PATCH /v2/verification/claim/:claimId` |
 | Jobs | `GET /v2/jobs/:id` |
+| Best projects | `POST /v2/github/ranking/:reportId` (starts a job), `GET /v2/github/ranking/:reportId`, `PUT /v2/github/ranking/:reportId/selection` (body: `repoIds`) |
 | GitHub | `GET /v2/github/connection`, `POST /v2/github/connect/start`, `GET /v2/github/connect/callback`, `GET /v2/github/repos`, `DELETE /v2/github/connection`, `POST /v2/github/analyze` (body: `reportId`, `repoId`), `GET /v2/github/analysis/:id`, `GET /v2/github/links/:reportId`, `PUT /v2/github/links/:analysisId/project` |
 | Health | `GET /v2/health`, `/health`, `/ready` |
 
@@ -252,6 +254,7 @@ Open `http://localhost:5173` in your browser.
 | `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_CALLBACK_URL`, `GITHUB_TOKEN_ENC_KEY` | *Optional as a group* | Enable GitHub Connect. If any is set all four must be valid; the callback must end with `/api/v2/github/connect/callback`; the key is base64 of 32 random bytes. See `Backend/.env.example` |
 | `USER_DAILY_REPORTS`, `USER_DAILY_GITHUB_ANALYSES` | `10`, `20` | Per-user daily caps for AI report requests and GitHub analyses |
 | `RATE_LIMIT_*` | see `.env.example` | Per-window limits for login, sign-up, reports, exports and GitHub requests |
+| `USER_DAILY_RANKINGS`, `RANKING_MAX_REPOS`, `RANKING_TOP_N` | `5`, `15`, `4` | Project ranking: daily runs per user, repositories analysed per run, projects that can be selected |
 | `JOB_RETENTION_DAYS` | `30` | Finished background jobs are deleted automatically after this many days |
 
 ### Frontend Configuration (`Frontend/.env`)

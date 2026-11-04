@@ -32,7 +32,7 @@ const jobSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['verification', 'github_analysis'],
+      enum: ['verification', 'github_analysis', 'repo_ranking'],
       default: 'verification',
       required: true,
     },

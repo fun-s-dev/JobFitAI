@@ -37,6 +37,7 @@ function createUserDataService({ models, disconnectGithub = async () => {} }) {
     ResumeClaim,
     Job,
     ReportProjectLink,
+    RepoRanking,
     LlmCall,
     GithubOauthState,
     User,
@@ -60,6 +61,7 @@ function createUserDataService({ models, disconnectGithub = async () => {} }) {
     counts.runs = (await VerificationRun.deleteMany({ report: report._id })).deletedCount;
     counts.drafts = (await ResumeDraft.deleteMany({ report: report._id })).deletedCount;
     counts.repositoryLinks = (await ReportProjectLink.deleteMany({ report: report._id })).deletedCount;
+    if (RepoRanking) counts.rankings = (await RepoRanking.deleteMany({ report: report._id })).deletedCount;
     counts.jobs = (await Job.deleteMany({ report: report._id })).deletedCount;
     await InterviewReport.deleteOne({ _id: report._id });
     counts.reports = 1;
@@ -78,6 +80,7 @@ function createUserDataService({ models, disconnectGithub = async () => {} }) {
     counts.runs = (await VerificationRun.deleteMany({ user: userId })).deletedCount;
     counts.drafts = (await ResumeDraft.deleteMany({ user: userId })).deletedCount;
     counts.repositoryLinks = (await ReportProjectLink.deleteMany({ user: userId })).deletedCount;
+    if (RepoRanking) counts.rankings = (await RepoRanking.deleteMany({ user: userId })).deletedCount;
     counts.jobs = (await Job.deleteMany({ user: userId })).deletedCount;
     counts.reports = (await InterviewReport.deleteMany({ user: userId })).deletedCount;
 

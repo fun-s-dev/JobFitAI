@@ -304,6 +304,107 @@ async function startGitHubAnalysisJob({
 }
 
 /**
+ * Runs one repository-ranking job in-process: queued -> running -> done | failed.
+ * Progress is the number of repositories analysed so far.
+ */
+async function runRepoRankingJob({ jobId, rankingService, jobModel = defaultJobModel }) {
+  const job = await jobModel.findById(jobId);
+  if (!job || job.status !== 'queued') {
+    return;
+  }
+
+  job.status = 'running';
+  job.startedAt = new Date();
+  await job.save();
+
+  try {
+    const ranking = await rankingService.rankForReport({
+      userId: String(job.user),
+      reportId: String(job.report),
+      onProgress: async ({ done, total }) => {
+        try {
+          await jobModel.updateOne({ _id: job._id }, { $set: { 'progress.done': done, 'progress.total': total } });
+        } catch {
+          // ignore intermediate progress errors
+        }
+      },
+    });
+
+    await jobModel.updateOne(
+      { _id: job._id },
+      { $set: { status: 'done', resultRef: ranking._id, finishedAt: new Date() } }
+    );
+  } catch (err) {
+    const isQuota =
+      err instanceof QuotaExhaustedError ||
+      err.name === 'QuotaExhaustedError' ||
+      err.code === 'LLM_QUOTA_EXHAUSTED';
+    await jobModel.updateOne(
+      { _id: job._id },
+      {
+        $set: {
+          status: 'failed',
+          error: {
+            code: isQuota ? 'QUOTA_EXHAUSTED' : err.code || 'RANKING_FAILED',
+            message: isQuota
+              ? 'Gemini daily free-tier quota exhausted. Resets at midnight Pacific. Please try again tomorrow.'
+              : err.message || 'Repository ranking failed',
+          },
+          finishedAt: new Date(),
+        },
+      }
+    );
+  }
+}
+
+/**
+ * Starts a repository-ranking job idempotently (one active job per report).
+ */
+async function startRepoRankingJob({ userId, reportId, rankingService, jobModel = defaultJobModel }) {
+  const existingJob = await jobModel.findOne({
+    report: reportId,
+    type: 'repo_ranking',
+    status: { $in: ['queued', 'running'] },
+  });
+  if (existingJob) {
+    return { job: existingJob, isNew: false };
+  }
+
+  let newJob;
+  try {
+    newJob = await jobModel.create({
+      user: userId,
+      report: reportId,
+      type: 'repo_ranking',
+      status: 'queued',
+      progress: { done: 0, total: 0 },
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      const raceJob = await jobModel.findOne({
+        report: reportId,
+        type: 'repo_ranking',
+        status: { $in: ['queued', 'running'] },
+      });
+      if (raceJob) {
+        return { job: raceJob, isNew: false };
+      }
+    }
+    throw err;
+  }
+
+  setImmediate(async () => {
+    try {
+      await runRepoRankingJob({ jobId: newJob._id, rankingService, jobModel });
+    } catch (bgErr) {
+      console.error('Unhandled background repo ranking job error:', bgErr);
+    }
+  });
+
+  return { job: newJob, isNew: true };
+}
+
+/**
  * Server boot cleanup: marks any jobs left in 'running' state as failed ('interrupted').
  * Called during server startup after database connection is established.
  *
@@ -359,6 +460,8 @@ module.exports = {
   startVerificationJob,
   runGitHubAnalysisJob,
   startGitHubAnalysisJob,
+  runRepoRankingJob,
+  startRepoRankingJob,
   cleanupInterruptedJobs,
   failOrphanedQueuedJobs,
 };

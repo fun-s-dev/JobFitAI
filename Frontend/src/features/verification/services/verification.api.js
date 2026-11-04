@@ -119,6 +119,31 @@ export async function getReportGithubLinks(reportId) {
 }
 
 /**
+ * Starts the background job that analyses the user's repositories and ranks them against the
+ * report's job description. Returns 202 { jobId, status }.
+ */
+export async function startRepoRanking(reportId) {
+  const response = await api.post(`/api/v2/github/ranking/${reportId}`, {});
+  return response.data;
+}
+
+/**
+ * Latest ranking of a report: { ranking: null | { requirements, repos, selectedRepoIds, selectionConfirmedAt }, topN }
+ */
+export async function getRepoRanking(reportId) {
+  const response = await api.get(`/api/v2/github/ranking/${reportId}`);
+  return response.data;
+}
+
+/**
+ * Confirms which ranked repositories to use (the server links them to the report).
+ */
+export async function confirmRepoSelection(reportId, repoIds) {
+  const response = await api.put(`/api/v2/github/ranking/${reportId}/selection`, { repoIds });
+  return response.data;
+}
+
+/**
  * Chooses which draft project a linked repository belongs to (null = back to automatic matching).
  */
 export async function setGithubLinkProject(reportId, analysisId, projectName) {

@@ -7,6 +7,7 @@ const BUDGET_TYPES = {
   USER_VERIFICATIONS: 'USER_VERIFICATIONS',
   USER_REPORTS: 'USER_REPORTS',
   USER_GITHUB_ANALYSES: 'USER_GITHUB_ANALYSES',
+  USER_RANKINGS: 'USER_RANKINGS',
   LLM_GENERATION: 'LLM_GENERATION',
   EMBEDDING: 'EMBEDDING',
 };
@@ -56,6 +57,8 @@ function checkBudget({ type, currentCount, maxLimit }) {
     message = `Daily interview report limit reached (${maxLimit} AI requests per day). Reset at midnight Pacific.`;
   } else if (type === BUDGET_TYPES.USER_GITHUB_ANALYSES) {
     message = `Daily GitHub analysis limit reached (${maxLimit} per day). Reset at midnight Pacific.`;
+  } else if (type === BUDGET_TYPES.USER_RANKINGS) {
+    message = `Daily project ranking limit reached (${maxLimit} per day). Reset at midnight Pacific.`;
   } else if (type === BUDGET_TYPES.LLM_GENERATION) {
     message = `Daily LLM generation budget reached (${maxLimit} calls per day for pinned model). Reset at midnight Pacific.`;
   } else if (type === BUDGET_TYPES.EMBEDDING) {

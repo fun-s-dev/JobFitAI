@@ -1,4 +1,9 @@
-const { startGitHubAnalysisJob } = require('../services/jobRunner');
+const { startGitHubAnalysisJob, startRepoRankingJob } = require('../services/jobRunner');
+const RepoRanking = require('../models/repoRanking.model');
+const InterviewReport = require('../../models/interviewReport.model');
+const { createRepoRankingService, RankingError } = require('../services/repoRanking.service');
+const { createJobRequirementsService } = require('../services/jobRequirements.service');
+const { githubEvidenceService: defaultGithubEvidenceService, buildLinkUpdate } = require('../services/githubEvidence.service');
 const GithubAnalysis = require('../models/githubAnalysis');
 const ReportProjectLink = require('../models/reportProjectLink.model');
 const GithubConnection = require('../models/githubConnection.model');
@@ -48,10 +53,40 @@ function buildDefaultConnectService() {
 
 let activeConnectService = null;
 let activeEvidenceService = null; // null = jobRunner's default githubEvidenceService
+let activeRankingService = null;
 
 function getConnectService() {
   if (!activeConnectService) activeConnectService = buildDefaultConnectService();
   return activeConnectService;
+}
+
+function buildDefaultRankingService() {
+  // Lazy: building the LLM client needs GOOGLE_GENAI_API_KEY
+  const { createLlmClient } = require('../adapters/llmClient');
+  const llmClient = createLlmClient();
+  let cfg = {};
+  try {
+    cfg = getCfg();
+  } catch {
+    cfg = {};
+  }
+  return createRepoRankingService({
+    connectService: getConnectService(),
+    githubEvidenceService: activeEvidenceService || defaultGithubEvidenceService,
+    llmClient,
+    requirementsService: createJobRequirementsService({ llmClient }),
+    RankingModel: RepoRanking,
+    ReportModel: InterviewReport,
+    LinkModel: ReportProjectLink,
+    buildLinkUpdate,
+    cfg,
+    logger: defaultLogger,
+  });
+}
+
+function getRankingService() {
+  if (!activeRankingService) activeRankingService = buildDefaultRankingService();
+  return activeRankingService;
 }
 
 /** Test hooks (same pattern as setDraftService / setVerificationService). */
@@ -60,6 +95,9 @@ function setGithubConnectService(service) {
 }
 function setGithubEvidenceService(service) {
   activeEvidenceService = service || null;
+}
+function setRepoRankingService(service) {
+  activeRankingService = service || null;
 }
 
 function frontendBase() {
@@ -72,12 +110,85 @@ function frontendBase() {
   return base.replace(/\/+$/, '');
 }
 
-function createGithubController({ jobStarter = startGitHubAnalysisJob, logger = defaultLogger } = {}) {
+function createGithubController({
+  jobStarter = startGitHubAnalysisJob,
+  rankingJobStarter = startRepoRankingJob,
+  logger = defaultLogger,
+} = {}) {
   function handleConnectError(err, req, res, next) {
     if (err instanceof GitHubConnectError) {
       return sendError(req, res, err.status, err.code, err.message);
     }
+    if (err instanceof RankingError) {
+      return sendError(req, res, err.status, err.code, err.message);
+    }
     return next(err);
+  }
+
+  // POST /api/v2/github/ranking/:reportId  -> 202 { jobId }  (analyse + rank the user's repositories)
+  async function startRanking(req, res, next) {
+    const userId = req.user._id || req.user.id;
+    try {
+      const status = await getConnectService().getStatus(String(userId));
+      if (!status || status.configured === false || !status.connected) {
+        return sendError(req, res, 409, 'GITHUB_NOT_CONNECTED', 'Connect GitHub first, then find your best projects.');
+      }
+      const { job, isNew } = await rankingJobStarter({
+        userId,
+        reportId: String(req.report._id),
+        rankingService: getRankingService(),
+      });
+      return res.status(202).json({
+        jobId: job._id,
+        status: job.status,
+        isNew,
+        message: 'Repository ranking job queued',
+        requestId: requestIdOf(req),
+      });
+    } catch (err) {
+      return handleConnectError(err, req, res, next);
+    }
+  }
+
+  // GET /api/v2/github/ranking/:reportId  -> { ranking | null, topN }
+  async function getReportRanking(req, res, next) {
+    const userId = req.user._id || req.user.id;
+    try {
+      const ranking = await getRankingService().getRanking({ userId, reportId: req.report._id });
+      let topN = 4;
+      try {
+        topN = getCfg().RANKING_TOP_N || topN;
+      } catch {
+        // keep default
+      }
+      res.set('Cache-Control', 'no-store');
+      return res.status(200).json({
+        ranking: ranking ? (typeof ranking.toObject === 'function' ? ranking.toObject() : ranking) : null,
+        topN,
+        requestId: requestIdOf(req),
+      });
+    } catch (err) {
+      return handleConnectError(err, req, res, next);
+    }
+  }
+
+  // PUT /api/v2/github/ranking/:reportId/selection  body: { repoIds }
+  async function putRankingSelection(req, res, next) {
+    const userId = req.user._id || req.user.id;
+    try {
+      const ranking = await getRankingService().confirmSelection({
+        userId,
+        reportId: req.report._id,
+        repoIds: req.body.repoIds,
+      });
+      return res.status(200).json({
+        selectedRepoIds: ranking.selectedRepoIds,
+        selectionConfirmedAt: ranking.selectionConfirmedAt,
+        requestId: requestIdOf(req),
+      });
+    } catch (err) {
+      return handleConnectError(err, req, res, next);
+    }
   }
 
   // GET /api/v2/github/connection
@@ -338,6 +449,9 @@ function createGithubController({ jobStarter = startGitHubAnalysisJob, logger = 
     getAnalysisById,
     listReportLinks,
     setLinkProject,
+    startRanking,
+    getReportRanking,
+    putRankingSelection,
   };
 }
 
@@ -361,6 +475,7 @@ module.exports = {
   createGithubController,
   setGithubConnectService,
   setGithubEvidenceService,
+  setRepoRankingService,
   disconnectGithubForUser,
   getConnection: defaultController.getConnection,
   startConnect: defaultController.startConnect,
@@ -371,4 +486,7 @@ module.exports = {
   getAnalysisById: defaultController.getAnalysisById,
   listReportLinks: defaultController.listReportLinks,
   setLinkProject: defaultController.setLinkProject,
+  startRanking: defaultController.startRanking,
+  getReportRanking: defaultController.getReportRanking,
+  putRankingSelection: defaultController.putRankingSelection,
 };

@@ -46,7 +46,20 @@ const connectStartBodySchema = z
   })
   .optional();
 
+const rankingParamsSchema = z.object({
+  reportId: z.string().regex(objectIdRegex, 'reportId must be a 24-character hex string'),
+});
+
+// The service enforces the configured maximum (RANKING_TOP_N); this only bounds the payload
+const rankingSelectionBodySchema = z
+  .object({
+    repoIds: z.array(z.number().int().positive()).min(1).max(10),
+  })
+  .strict();
+
 module.exports = {
+  rankingParamsSchema,
+  rankingSelectionBodySchema,
   analyzeRepoBodySchema,
   reportLinksParamsSchema,
   setLinkProjectParamsSchema,

@@ -3,7 +3,12 @@ const { authUser } = require('../../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate');
 const { loadOwnedReport } = require('../middlewares/loadOwnedReport');
 const { createRateLimiter } = require('../middlewares/rateLimits');
-const { guardLlmGenerationBudget, guardUserDailyGithubAnalyses } = require('../middlewares/budgetGuard');
+const {
+  guardLlmGenerationBudget,
+  guardEmbeddingBudget,
+  guardUserDailyGithubAnalyses,
+  guardUserDailyRankings,
+} = require('../middlewares/budgetGuard');
 const { getCfg } = require('../config/env');
 const {
   analyzeRepoBodySchema,
@@ -12,12 +17,17 @@ const {
   reportLinksParamsSchema,
   setLinkProjectParamsSchema,
   setLinkProjectBodySchema,
+  rankingParamsSchema,
+  rankingSelectionBodySchema,
 } = require('../schemas/github');
 const {
   postAnalyzeRepo,
   getAnalysisById,
   listReportLinks,
   setLinkProject,
+  startRanking,
+  getReportRanking,
+  putRankingSelection,
   getConnection,
   startConnect,
   connectCallback,
@@ -100,6 +110,40 @@ router.post(
   guardUserDailyGithubAnalyses,
   guardLlmGenerationBudget,
   postAnalyzeRepo
+);
+
+// --- Best projects for a job description (repository ranking) -------------------------------------
+
+// POST /api/v2/github/ranking/:reportId  -> 202 { jobId }: analyse + rank the user's repositories
+router.post(
+  '/ranking/:reportId',
+  authUser,
+  githubLimiter,
+  validate({ params: rankingParamsSchema }),
+  loadOwnedReport,
+  guardUserDailyRankings,
+  guardLlmGenerationBudget,
+  guardEmbeddingBudget,
+  startRanking
+);
+
+// GET /api/v2/github/ranking/:reportId  -> latest ranking of this report (or null)
+router.get(
+  '/ranking/:reportId',
+  authUser,
+  validate({ params: rankingParamsSchema }),
+  loadOwnedReport,
+  getReportRanking
+);
+
+// PUT /api/v2/github/ranking/:reportId/selection  -> confirm which ranked repositories to use
+router.put(
+  '/ranking/:reportId/selection',
+  authUser,
+  connectLimiter,
+  validate({ params: rankingParamsSchema, body: rankingSelectionBodySchema }),
+  loadOwnedReport,
+  putRankingSelection
 );
 
 // GET /api/v2/github/links/:reportId  -> repositories linked to a report + project assignment

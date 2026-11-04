@@ -37,6 +37,13 @@ const githubAnalysisSchema = new mongoose.Schema(
     languages: { type: mongoose.Schema.Types.Mixed, default: {} },
     dependencies: [dependencySchema],
     evidenceItems: [evidenceItemSchema],
+    // Repository description from GitHub and the (secret-scrubbed, size-capped) README. Used to rank
+    // repositories against a job description and as retrieval material. `readmeChecked` is false on
+    // analyses created before these fields existed, which forces one re-analysis to fill them in.
+    description: { type: String, default: null },
+    readmePath: { type: String, default: null },
+    readmeText: { type: String, default: null },
+    readmeChecked: { type: Boolean, default: false },
     analysisStatus: {
       type: String,
       enum: ['pending', 'complete', 'failed', 'stale'],
