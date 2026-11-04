@@ -1,4 +1,20 @@
-import { api } from '../../../services/apiClient';
+import { api, API_BASE } from '../../../services/apiClient';
+
+/**
+ * With responseType 'blob', axios delivers JSON error bodies as a Blob.
+ * Parse it back into an object so callers can read err.response.data.error.message.
+ */
+async function parseBlobErrorBody(err) {
+  const data = err?.response?.data;
+  if (data && typeof data.text === 'function') {
+    try {
+      err.response.data = JSON.parse(await data.text());
+    } catch {
+      // Not JSON (e.g. proxy HTML error page): leave the body as-is
+    }
+  }
+  return err;
+}
 
 /**
  * Initiates an async verification run for a report. Returns 202 { jobId, status, progress }
@@ -50,19 +66,23 @@ export async function getGroundedDraft(reportId, runId = null) {
  * Triggers server-side PDF export via Puppeteer.
  */
 export async function downloadGroundedPdf(reportId, runId = null) {
-  const response = await api.post(
-    `/api/v2/drafts/${reportId}/pdf`,
-    { runId },
-    { responseType: 'blob' }
-  );
-  return response.data;
+  try {
+    const response = await api.post(
+      `/api/v2/drafts/${reportId}/pdf`,
+      runId ? { runId } : {},
+      { responseType: 'blob' }
+    );
+    return response.data;
+  } catch (err) {
+    throw await parseBlobErrorBody(err);
+  }
 }
 
 /**
  * Returns absolute print URL for opening browser print dialog with strict CSP.
  */
 export function getPrintDraftUrl(reportId, runId = null) {
-  const query = runId ? `?runId=${runId}` : '';
+  const query = runId ? `?runId=${encodeURIComponent(runId)}` : '';
   const path = `/api/v2/drafts/${reportId}/print${query}`;
   return API_BASE ? `${API_BASE}${path}` : path;
 }
@@ -85,8 +105,49 @@ export async function startGitHubAnalysis(reportId, repoUrl) {
 
 /**
  * Fetches an analysis record by analysisId.
+ * Response: { analysis, control: { verified, method, githubLogin }, authorship: 'not_assessed' }
  */
 export async function getGitHubAnalysis(analysisId) {
   const response = await api.get(`/api/v2/github/analysis/${analysisId}`);
+  return response.data;
+}
+
+// ---- GitHub Connect (tokens never reach the browser; these calls only carry the session cookie) ----
+
+/**
+ * Connection status: { configured, connected, needsReconnect?, login?, avatarUrl?, connectedAt? }
+ */
+export async function getGithubConnection() {
+  const response = await api.get('/api/v2/github/connection');
+  return response.data.connection;
+}
+
+/**
+ * Starts the GitHub authorization. Returns { authorizeUrl } - the page must navigate to it.
+ */
+export async function startGithubConnect(returnTo) {
+  const response = await api.post('/api/v2/github/connect/start', returnTo ? { returnTo } : {});
+  return response.data;
+}
+
+/**
+ * Public repositories owned by the connected account, each classified:
+ * { login, repos: [{ repoId, fullName, selectable, unsupportedReason, unsupportedMessage, control, ... }], scope }
+ */
+export async function listGithubRepos() {
+  const response = await api.get('/api/v2/github/repos');
+  return response.data;
+}
+
+export async function disconnectGithub() {
+  const response = await api.delete('/api/v2/github/connection');
+  return response.data;
+}
+
+/**
+ * Analyzes a repository selected from the connected account. Ownership is verified by the server.
+ */
+export async function startGitHubRepoAnalysis(reportId, repoId) {
+  const response = await api.post('/api/v2/github/analyze', { reportId, repoId });
   return response.data;
 }

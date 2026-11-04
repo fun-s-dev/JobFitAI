@@ -42,6 +42,13 @@ const draftLimiter = createRateLimiter({
   message: 'Too many draft generation requests, please try again later',
 });
 
+// Rate limiter for server-side PDF rendering (each request launches Chromium)
+const exportLimiter = createRateLimiter({
+  windowMs: cfg.RATE_LIMIT_EXPORT_WINDOW_MS,
+  max: cfg.RATE_LIMIT_EXPORT_MAX,
+  message: 'Too many PDF export requests, please try again later',
+});
+
 // POST /api/v2/drafts/:reportId (standard spine: authUser -> rateLimit -> validate -> loadOwnedReport -> controller)
 router.post(
   '/:reportId',
@@ -75,6 +82,7 @@ router.get(
 router.post(
   '/:reportId/pdf',
   authUser,
+  exportLimiter,
   validate({ params: reportParamsSchema, body: pdfBodySchema, query: printQuerySchema }),
   loadOwnedReport,
   renderDraftPdf

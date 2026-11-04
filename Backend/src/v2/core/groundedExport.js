@@ -1,4 +1,5 @@
 const { getEffectiveStatus } = require('./effectiveStatus');
+const { groundDraftSections } = require('./sectionGrounding');
 
 /**
  * Evaluates draft bullets against verified/approved claims.
@@ -96,7 +97,63 @@ function filterGroundedDraft(draft = {}, claims = []) {
   };
 }
 
+/**
+ * Builds the complete grounded export for a draft:
+ * - experience/project bullets filtered by claim status (filterGroundedDraft)
+ * - header, skills, education filtered deterministically against the user's evidence
+ * - summary always left out (not claim-checked)
+ *
+ * Returns `exportDraft`, a draft object containing ONLY the content that may be rendered.
+ *
+ * @param {object} draft - ResumeDraft content (plain object)
+ * @param {Array<object>} claims - Claims of the verification run that verified THIS draft
+ * @param {string[]} evidenceTexts - User-supplied evidence (resume text, self-description)
+ */
+function buildGroundedExport(draft = {}, claims = [], evidenceTexts = []) {
+  const bulletResult = filterGroundedDraft(draft, claims);
+  const sections = groundDraftSections(draft, evidenceTexts);
+  const excluded = new Set(bulletResult.excludedBulletIds);
+  const educationIds = new Set(sections.educationIds);
+
+  const keepBullets = (bullets) =>
+    (Array.isArray(bullets) ? bullets : [])
+      .filter((b) => b && b.id && !excluded.has(b.id))
+      .map((b) => ({ id: b.id, text: b.text }));
+
+  const exportDraft = {
+    name: sections.header.name,
+    contact: sections.header.contact,
+    summary: '',
+    experience: (Array.isArray(draft.experience) ? draft.experience : [])
+      .map((exp) => ({
+        id: exp.id,
+        company: exp.company,
+        role: exp.role,
+        dates: exp.dates || '',
+        bullets: keepBullets(exp.bullets),
+      }))
+      .filter((exp) => exp.bullets.length > 0),
+    projects: (Array.isArray(draft.projects) ? draft.projects : [])
+      .map((prj) => ({ id: prj.id, name: prj.name, bullets: keepBullets(prj.bullets) }))
+      .filter((prj) => prj.bullets.length > 0),
+    skills: sections.skills,
+    education: (Array.isArray(draft.education) ? draft.education : [])
+      .filter((edu) => edu && educationIds.has(edu.id))
+      .map((edu) => ({ id: edu.id, school: edu.school, degree: edu.degree, dates: edu.dates || '' })),
+  };
+
+  return {
+    exportDraft,
+    allowedBulletIds: bulletResult.allowedBulletIds,
+    excludedBulletIds: bulletResult.excludedBulletIds,
+    excludedBullets: bulletResult.excludedBullets,
+    excludedItems: sections.excludedItems,
+    warnings: sections.warnings,
+  };
+}
+
 module.exports = {
   getEffectiveStatus,
   filterGroundedDraft,
+  buildGroundedExport,
 };

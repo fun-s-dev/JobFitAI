@@ -32,6 +32,9 @@ const EducationEntrySchema = z.object({
 
 // Full Validated ResumeDraft Schema
 const ResumeDraftSchema = z.object({
+  // Header fields are optional so drafts created before they existed still validate.
+  name: z.string().default(''),
+  contact: z.array(z.string()).default([]),
   summary: z.string(),
   experience: z.array(ExperienceEntrySchema),
   projects: z.array(ProjectEntrySchema),
@@ -48,6 +51,14 @@ const RawBulletSchema = z.union([
 ]);
 
 const RawDraftSchema = z.object({
+  name: z
+    .string()
+    .default('')
+    .describe("Candidate's full name copied exactly from the resume; empty string if absent"),
+  contact: z
+    .array(z.string())
+    .default([])
+    .describe('Contact lines (email, phone, location, profile URLs) copied exactly from the resume'),
   summary: z.string().describe('ATS-friendly professional summary tailored to the job description'),
   experience: z.array(
     z.object({
@@ -140,7 +151,14 @@ function assignDraftIds(rawDraft = {}) {
     })
   );
 
+  const name = typeof rawDraft.name === 'string' ? rawDraft.name.trim() : '';
+  const contact = (Array.isArray(rawDraft.contact) ? rawDraft.contact : [])
+    .map((c) => (typeof c === 'string' ? c.trim() : ''))
+    .filter(Boolean);
+
   return {
+    name,
+    contact,
     summary,
     experience,
     projects,

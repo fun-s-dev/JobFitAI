@@ -34,8 +34,11 @@ RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
       && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Configure Puppeteer executable path if Chromium is installed
-ENV PUPPETEER_EXECUTABLE_PATH=${INSTALL_CHROMIUM:+"/usr/bin/chromium"}
+# Puppeteer's own browser download is skipped above, so always point it at the system Chromium.
+# (The previous ${INSTALL_CHROMIUM:+...} expansion set this path even when INSTALL_CHROMIUM=false,
+# because "false" is a non-empty string.) Without Chromium, pdfRenderer detects the missing
+# binary and the PDF endpoint returns 503 telling users to use the browser print view.
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Copy production node_modules from deps stage and application code
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules

@@ -48,10 +48,15 @@ function createVerificationController({
       const userId = req.user ? (req.user._id || req.user.id) : null;
       const { draftId = null, githubAnalysisIds = [], sync: bodySync } = req.body || {};
       const querySync = req.query?.sync === true || req.query?.sync === 'true';
+      // Synchronous mode holds the HTTP request open for the whole (slow) verification, which ties up
+      // the server and trips proxy timeouts. It exists for tests and local debugging only, so a
+      // client-supplied `sync` flag is ignored in production.
+      const syncAllowed = process.env.NODE_ENV !== 'production';
       const isSync =
-        bodySync === true ||
-        querySync ||
-        (syncMode !== null ? syncMode : activeSyncMode);
+        syncAllowed &&
+        (bodySync === true ||
+          querySync ||
+          (syncMode !== null ? syncMode : activeSyncMode));
 
       const serviceToUse = verificationService || activeVerificationService;
 

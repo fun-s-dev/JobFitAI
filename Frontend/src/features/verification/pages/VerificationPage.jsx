@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { useParams, Link } from 'react-router';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link, useSearchParams } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import '../style/verification.scss';
 import { useVerification } from '../hooks/useVerification';
 import { useJob } from '../hooks/useJob';
 import { useClaimDecision } from '../hooks/useClaimDecision';
 import SummaryBar from '../components/SummaryBar';
 import ClaimRow from '../components/ClaimRow';
-import GithubLinkForm from '../components/GithubLinkForm';
+import GithubConnectPanel from '../components/GithubConnectPanel';
+import { parseGithubConnectResult } from '../utils/githubConnectMessages';
 import {
   startVerificationJob,
   getPrintDraftUrl,
@@ -28,7 +30,24 @@ export default function VerificationPage() {
   const [draftNotice, setDraftNotice] = useState(null);
   const [draftError, setDraftError] = useState(null);
   const [printNotice, setPrintNotice] = useState(null);
+  const [startError, setStartError] = useState(null);
   const [linkedAnalysisIds, setLinkedAnalysisIds] = useState([]);
+  const [githubResult, setGithubResult] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+
+  // The backend callback redirects here with ?github=connected or ?github=error&reason=...
+  useEffect(() => {
+    const result = parseGithubConnectResult(searchParams);
+    if (!result) return;
+    setGithubResult(result);
+    queryClient.invalidateQueries({ queryKey: ['githubConnection'] });
+    queryClient.invalidateQueries({ queryKey: ['githubRepos'] });
+    const next = new URLSearchParams(searchParams);
+    next.delete('github');
+    next.delete('reason');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, queryClient]);
 
   const {
     run,
@@ -56,6 +75,7 @@ export default function VerificationPage() {
   const handleStartVerification = async () => {
     setIsStartingJob(true);
     setDraftError(null);
+    setStartError(null);
     setPrintNotice(null);
     try {
       const data = await startVerificationJob(reportId, {
@@ -65,7 +85,12 @@ export default function VerificationPage() {
         setActiveJobId(data.jobId);
       }
     } catch (err) {
-      console.error('Failed to trigger verification job:', err);
+      const body = err.response?.data;
+      setStartError(
+        body?.error?.message ||
+          body?.message ||
+          'Could not start verification. Check your connection and try again.'
+      );
     } finally {
       setIsStartingJob(false);
     }
@@ -78,7 +103,8 @@ export default function VerificationPage() {
     setDraftNotice(null);
     try {
       await createDraftForReport(reportId);
-      setDraftNotice('Tailored resume draft generated successfully! You can now run verification.');
+      setDraftNotice('Tailored resume draft generated. Run verification to check it before exporting.');
+      refetch();
     } catch (err) {
       setDraftError(
         err.response?.data?.error?.message ||
@@ -93,11 +119,15 @@ export default function VerificationPage() {
   const handlePrint = () => {
     const printUrl = getPrintDraftUrl(reportId, run?._id);
     const printWindow = window.open(printUrl, '_blank');
-    if (printWindow) {
-      printWindow.focus();
+    if (!printWindow) {
+      setPrintNotice(
+        'Your browser blocked the print preview pop-up. Allow pop-ups for this site and click Print / Save as PDF again.'
+      );
+      return;
     }
+    printWindow.focus();
     setPrintNotice(
-      'Print preview opened in a new tab. Because exports are delivered under a strict zero-script Content Security Policy, press Ctrl+P (Cmd+P on Mac) in the new tab to print or save as PDF.'
+      'Print preview opened in a new tab. The page runs no scripts, so press Ctrl+P (Cmd+P on Mac) there and choose "Save as PDF".'
     );
   };
 
@@ -156,7 +186,8 @@ export default function VerificationPage() {
             </Link>
             <h1>Resume Verification & Grounded Export</h1>
             <p>
-              Audits every atomic resume bullet claim against primary evidence with natural language inference.
+              Checks each claim in the AI-tailored draft against the resume and self-description you provided.
+              It confirms consistency with your own material; it does not independently verify facts.
             </p>
           </div>
 
@@ -205,6 +236,21 @@ export default function VerificationPage() {
             <strong>Draft Error: </strong>{draftError}
           </div>
         )}
+        {startError && (
+          <div className="verification-page__error-alert" role="alert">
+            <strong>Verification Error: </strong>{startError}
+          </div>
+        )}
+
+        {/* Newer draft than the verified one: export still uses the verified draft */}
+        {grounded && grounded.isLatestDraftVerified === false && (
+          <div className="verification-page__waking-alert" role="status" data-testid="stale-draft-notice">
+            <span>
+              You generated a newer draft after the last verification. Exports use the verified draft;
+              run verification again to export the newer one.
+            </span>
+          </div>
+        )}
 
         {/* Print Instruction Alert */}
         {printNotice && (
@@ -244,8 +290,19 @@ export default function VerificationPage() {
           </div>
         )}
 
-        {/* GitHub Repository Evidence Form */}
-        <GithubLinkForm
+        {/* Result of the GitHub authorization redirect */}
+        {githubResult && (
+          <div
+            role={githubResult.type === 'error' ? 'alert' : 'status'}
+            className={githubResult.type === 'error' ? 'verification-page__error-alert' : 'verification-page__waking-alert'}
+            data-testid="github-connect-result"
+          >
+            <span>{githubResult.message}</span>
+          </div>
+        )}
+
+        {/* GitHub Repository Evidence: Connect GitHub (verified ownership) or pasted URL (unverified) */}
+        <GithubConnectPanel
           reportId={reportId}
           onAnalysisComplete={(analysis) => {
             if (analysis?._id) {
@@ -253,6 +310,17 @@ export default function VerificationPage() {
             }
           }}
         />
+
+        {run?.config?.githubEvidence?.excludedUnverifiedAnalysisIds?.length > 0 && (
+          <div className="verification-page__waking-alert" role="status" data-testid="unverified-github-notice">
+            <span>
+              {run.config.githubEvidence.excludedUnverifiedAnalysisIds.length} linked repositor
+              {run.config.githubEvidence.excludedUnverifiedAnalysisIds.length === 1 ? 'y was' : 'ies were'} not counted
+              in this verification because ownership was not verified. Connect GitHub and select your own
+              repositories to count them.
+            </span>
+          </div>
+        )}
 
         {/* Summary Bar */}
         {(claims.length > 0 || activeJob.isRunning) && (
@@ -320,7 +388,9 @@ export default function VerificationPage() {
             <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
               <h2>No Verification Run Yet</h2>
               <p style={{ color: '#7d8590', maxWidth: '480px', margin: '0.5rem auto 1.5rem auto' }}>
-                Verify your resume draft claims against original resume evidence and GitHub repositories to produce a 100% grounded, ATS-optimized export.
+                Generate a tailored draft, then run verification. Only bullets supported by your resume
+                (or approved by you) are exported. Skills, education and contact details are exported only
+                if they appear in your resume.
               </p>
               <button
                 type="button"
@@ -328,7 +398,7 @@ export default function VerificationPage() {
                 onClick={handleStartVerification}
                 disabled={isStartingJob}
               >
-                {isStartingJob ? 'Queueing Job...' : 'Start Fact-Checking Verification'}
+                {isStartingJob ? 'Queueing Job...' : 'Run Verification'}
               </button>
             </div>
           )

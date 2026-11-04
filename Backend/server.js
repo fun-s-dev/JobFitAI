@@ -14,7 +14,7 @@ try {
 
 const app = require('./src/app');
 const connectDB = require('./src/config/database');
-const { cleanupInterruptedJobs } = require('./src/v2/services/jobRunner');
+const { cleanupInterruptedJobs, failOrphanedQueuedJobs } = require('./src/v2/services/jobRunner');
 
 const PORT = config.PORT;
 
@@ -22,6 +22,9 @@ async function startServer() {
   await connectDB();
   await cleanupInterruptedJobs().catch((err) => {
     console.error('Failed to cleanup interrupted jobs on boot:', err.message);
+  });
+  await failOrphanedQueuedJobs().catch((err) => {
+    console.error('Failed to cleanup orphaned queued jobs on boot:', err.message);
   });
 
   app.listen(PORT, () => {

@@ -90,6 +90,18 @@ function renderDraftToHtml(draft = {}, { excludedBulletIds = [] } = {}) {
       ? `<p class="skills-list">${skills.map(escapeHtml).join(' &bull; ')}</p>`
       : '';
 
+  const name = typeof draft.name === 'string' ? draft.name.trim() : '';
+  const contact = (Array.isArray(draft.contact) ? draft.contact : [])
+    .filter((c) => typeof c === 'string' && c.trim())
+    .map((c) => escapeHtml(c.trim()));
+  const headerHtml =
+    name || contact.length > 0
+      ? `<header class="resume-header">
+    ${name ? `<h1 class="resume-name">${escapeHtml(name)}</h1>` : ''}
+    ${contact.length > 0 ? `<p class="resume-contact">${contact.join(' &nbsp;|&nbsp; ')}</p>` : ''}
+  </header>`
+      : '';
+
   const educationHtml = education
     .map(
       (edu) => `
@@ -107,8 +119,9 @@ function renderDraftToHtml(draft = {}, { excludedBulletIds = [] } = {}) {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Resume</title>
+  <title>${name ? `${escapeHtml(name)} - Resume` : 'Resume'}</title>
   <style>
+    @page { size: A4; margin: 20mm 15mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -136,9 +149,16 @@ function renderDraftToHtml(draft = {}, { excludedBulletIds = [] } = {}) {
     .bullets { margin-left: 20px; margin-top: 3px; }
     .bullets li { margin-bottom: 3px; }
     .skills-list { font-size: 10pt; line-height: 1.5; }
+    .resume-header { text-align: center; margin-bottom: 6px; }
+    .resume-name { font-size: 18pt; letter-spacing: 0.5px; }
+    .resume-contact { font-size: 10pt; color: #333; margin-top: 2px; }
+    @media screen {
+      body { max-width: 210mm; margin: 24px auto; padding: 20mm 15mm; box-shadow: 0 0 8px rgba(0,0,0,0.15); }
+    }
   </style>
 </head>
 <body>
+  ${headerHtml}
   ${summary ? `<section class="section"><h2>Professional Summary</h2><p class="summary-text">${summary}</p></section>` : ''}
   ${experienceHtml ? `<section class="section"><h2>Experience</h2>${experienceHtml}</section>` : ''}
   ${projectsHtml ? `<section class="section"><h2>Projects</h2>${projectsHtml}</section>` : ''}

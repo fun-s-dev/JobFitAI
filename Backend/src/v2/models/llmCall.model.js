@@ -63,6 +63,10 @@ const llmCallSchema = new mongoose.Schema(
 
 llmCallSchema.index({ runId: 1 });
 llmCallSchema.index({ createdAt: 1 });
+// The daily budget guards count rows per model since Pacific midnight
+llmCallSchema.index({ model: 1, createdAt: 1 });
+// Per-user daily caps (V1 reports) filter by user + purpose
+llmCallSchema.index({ user: 1, purpose: 1, createdAt: 1 });
 
 const LlmCall = mongoose.models.LlmCall || mongoose.model('LlmCall', llmCallSchema);
 

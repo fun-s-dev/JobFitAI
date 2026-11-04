@@ -374,6 +374,8 @@ describe('verification.service (unit)', () => {
       mockRepos.ReportProjectLink.findOne.mockResolvedValue({
         report: '507f1f77bcf86cd799439011',
         analysisId: '507f1f77bcf86cd799439099',
+        // Ownership verified through GitHub Connect: this repository counts toward scoring
+        control: { verified: true, method: 'github_app_identity' },
       });
       mockRepos.GithubAnalysis.find.mockResolvedValue([
         {
@@ -407,6 +409,60 @@ describe('verification.service (unit)', () => {
       expect(result.claims.length).toBe(1);
       expect(result.claims[0].projectEvidence.score).toBe(0.8);
       expect(result.claims[0].projectEvidence.evidenceItemIds).toContain('item_1');
+    });
+
+    describe.each([
+      ['a pasted public URL link', { verified: false, method: 'pasted_public_url' }],
+      ['a legacy link created before ownership verification existed', undefined],
+    ])('GitHub evidence from %s', (_label, control) => {
+      it('is excluded from scoring and reported as excluded in the run config', async () => {
+        mockRepos.InterviewReport.findOne.mockResolvedValue({
+          _id: '507f1f77bcf86cd799439011',
+          user: '507f1f77bcf86cd799439012',
+          resume: 'Experienced developer',
+        });
+        mockRepos.ResumeDraft.findOne.mockReturnValue({
+          sort: vi.fn().mockResolvedValue({
+            _id: '507f1f77bcf86cd799439013',
+            draft: { experience: [{ bullets: [{ id: 'b1', text: 'Express API development' }] }] },
+          }),
+        });
+        mockRepos.ReportProjectLink.findOne.mockResolvedValue({
+          report: '507f1f77bcf86cd799439011',
+          analysisId: '507f1f77bcf86cd799439099',
+          ...(control ? { control } : {}),
+        });
+        mockRepos.GithubAnalysis.find.mockClear();
+        mockRepos.GithubAnalysis.find.mockResolvedValue([
+          {
+            _id: '507f1f77bcf86cd799439099',
+            evidenceItems: [{ _id: 'item_1', type: 'source_file', skill: 'Express', strength: 0.8, contradiction: false }],
+          },
+        ]);
+
+        const service = createVerificationService({
+          llmClient: mockLlmClient,
+          evidenceMatchingService: mockEvidenceMatchingService,
+          entailmentService: mockEntailmentService,
+          claimExtractionService: mockClaimExtractionService,
+          repos: mockRepos,
+        });
+
+        const result = await service.verifyReport({
+          reportId: '507f1f77bcf86cd799439011',
+          userId: '507f1f77bcf86cd799439012',
+          githubAnalysisIds: ['507f1f77bcf86cd799439099'],
+        });
+
+        // Evidence is not loaded at all and contributes nothing to the score
+        expect(mockRepos.GithubAnalysis.find).not.toHaveBeenCalled();
+        expect(result.claims[0].projectEvidence.score).toBeNull();
+        expect(result.claims[0].projectEvidence.evidenceItemIds).toEqual([]);
+        expect(result.run.config.githubEvidence).toEqual({
+          usedAnalysisIds: [],
+          excludedUnverifiedAnalysisIds: ['507f1f77bcf86cd799439099'],
+        });
+      });
     });
   });
 });

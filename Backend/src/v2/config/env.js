@@ -14,6 +14,11 @@ class ConfigError extends Error {
   }
 }
 
+// `VAR=` in a .env file arrives as '' - treat it as "not set"
+function emptyAsUndefined(schema) {
+  return z.preprocess((value) => (value === '' ? undefined : value), schema);
+}
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -42,6 +47,16 @@ const envSchema = z
     RATE_LIMIT_VERIFY_MAX: z.coerce.number().int().positive().default(10),
     RATE_LIMIT_GITHUB_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
     RATE_LIMIT_GITHUB_MAX: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_REPORT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+    RATE_LIMIT_REPORT_MAX: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_LOGIN_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+    RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_REGISTER_WINDOW_MS: z.coerce.number().int().positive().default(60 * 60 * 1000),
+    RATE_LIMIT_REGISTER_MAX: z.coerce.number().int().positive().default(10),
+    USER_DAILY_REPORTS: z.coerce.number().int().positive().default(10),
+    RATE_LIMIT_EXPORT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+    RATE_LIMIT_EXPORT_MAX: z.coerce.number().int().positive().default(20),
+    PDF_RENDER_CONCURRENCY: z.coerce.number().int().positive().default(1),
     GITHUB_TOKEN: z.string().optional(),
     FRONTEND_URL: z.string().default('http://localhost:5173'),
     TRUST_PROXY_HOPS: z.coerce.number().int().nonnegative().default(1),
@@ -64,6 +79,15 @@ const envSchema = z
     QUOTE_GROUNDING_THRESHOLD: z.coerce.number().min(0).max(1).default(0.90),
     MAX_EVIDENCE_CHUNKS: z.coerce.number().int().positive().default(3),
     MAX_CHUNK_CHARS: z.coerce.number().int().positive().default(500),
+    // GitHub Connect (GitHub App user authorization). All four are optional as a group:
+    // when none is set the feature reports "not configured"; when any is set all must be valid.
+    GITHUB_APP_CLIENT_ID: emptyAsUndefined(z.string().min(1).optional()),
+    GITHUB_APP_CLIENT_SECRET: emptyAsUndefined(z.string().min(1).optional()),
+    GITHUB_APP_CALLBACK_URL: emptyAsUndefined(z.string().url().optional()),
+    GITHUB_TOKEN_ENC_KEY: emptyAsUndefined(z.string().optional()),
+    RATE_LIMIT_GITHUB_CONNECT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+    RATE_LIMIT_GITHUB_CONNECT_MAX: z.coerce.number().int().positive().default(30),
+    USER_DAILY_GITHUB_ANALYSES: z.coerce.number().int().positive().default(20),
   })
   .refine(
     (data) => data.THRESHOLD_VERIFIED > data.THRESHOLD_REVIEW,
@@ -92,7 +116,70 @@ const envSchema = z
       message: 'W_SIM_NOGH + W_ENT_NOGH must sum to 1.0',
       path: ['W_SIM_NOGH'],
     }
+  )
+  .superRefine((data, ctx) => {
+    const groupKeys = [
+      'GITHUB_APP_CLIENT_ID',
+      'GITHUB_APP_CLIENT_SECRET',
+      'GITHUB_APP_CALLBACK_URL',
+      'GITHUB_TOKEN_ENC_KEY',
+    ];
+    const anySet = groupKeys.some((k) => data[k] !== undefined);
+    if (!anySet) return;
+
+    for (const key of groupKeys) {
+      if (data[key] === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `${key} is required when any GitHub Connect variable is set`,
+        });
+      }
+    }
+
+    if (data.GITHUB_TOKEN_ENC_KEY !== undefined && Buffer.from(data.GITHUB_TOKEN_ENC_KEY, 'base64').length !== 32) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['GITHUB_TOKEN_ENC_KEY'],
+        message: 'GITHUB_TOKEN_ENC_KEY must be a base64-encoded 32-byte key',
+      });
+    }
+
+    if (data.GITHUB_APP_CALLBACK_URL !== undefined) {
+      let parsed = null;
+      try {
+        parsed = new URL(data.GITHUB_APP_CALLBACK_URL);
+      } catch {
+        parsed = null;
+      }
+      const isLocalHttp = parsed && parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname);
+      const isHttps = parsed && parsed.protocol === 'https:';
+      if (!parsed || !(isHttps || isLocalHttp)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GITHUB_APP_CALLBACK_URL'],
+          message: 'GITHUB_APP_CALLBACK_URL must be https (or http on localhost)',
+        });
+      } else if (parsed.pathname !== '/api/v2/github/connect/callback' || parsed.search || parsed.hash) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GITHUB_APP_CALLBACK_URL'],
+          message: 'GITHUB_APP_CALLBACK_URL must end with /api/v2/github/connect/callback and have no query',
+        });
+      }
+    }
+  });
+
+/** True when all GitHub Connect variables are present (the schema guarantees they are valid together). */
+function isGitHubConnectConfigured(cfg) {
+  return Boolean(
+    cfg &&
+      cfg.GITHUB_APP_CLIENT_ID &&
+      cfg.GITHUB_APP_CLIENT_SECRET &&
+      cfg.GITHUB_APP_CALLBACK_URL &&
+      cfg.GITHUB_TOKEN_ENC_KEY
   );
+}
 
 /**
  * Pure function that validates an environment dictionary and returns a frozen config object.
@@ -131,4 +218,5 @@ module.exports = {
   loadConfig,
   ConfigError,
   getCfg,
+  isGitHubConnectConfigured,
 };

@@ -165,6 +165,7 @@ async function startVerificationJob({
 async function runGitHubAnalysisJob({
   jobId,
   githubEvidenceService,
+  resolveGithubClient = null,
   jobModel = defaultJobModel,
 }) {
   const service = githubEvidenceService || require('./githubEvidence.service').githubEvidenceService;
@@ -178,10 +179,24 @@ async function runGitHubAnalysisJob({
   await job.save();
 
   try {
+    // Repositories whose ownership was verified are read with the owner's own GitHub token
+    // (higher rate limit). If that token cannot be obtained, fall back to the default client:
+    // the repository is public, so analysis still works.
+    let githubClient = null;
+    if (resolveGithubClient && job.repoControl && job.repoControl.verified === true) {
+      try {
+        githubClient = await resolveGithubClient(String(job.user));
+      } catch {
+        githubClient = null;
+      }
+    }
+
     const result = await service.analyzeRepository({
       repoUrl: job.repoUrl,
       reportId: String(job.report),
       userId: String(job.user),
+      githubClient,
+      control: job.repoControl || null,
       onProgress: async ({ done, total }) => {
         try {
           await jobModel.updateOne(
@@ -232,6 +247,8 @@ async function startGitHubAnalysisJob({
   userId,
   reportId,
   repoUrl,
+  repoControl = null,
+  resolveGithubClient = null,
   githubEvidenceService,
   jobModel = defaultJobModel,
 }) {
@@ -252,6 +269,7 @@ async function startGitHubAnalysisJob({
       report: reportId,
       type: 'github_analysis',
       repoUrl,
+      repoControl,
       status: 'queued',
       progress: { done: 0, total: 0 },
     });
@@ -274,6 +292,7 @@ async function startGitHubAnalysisJob({
       await runGitHubAnalysisJob({
         jobId: newJob._id,
         githubEvidenceService,
+        resolveGithubClient,
         jobModel,
       });
     } catch (bgErr) {
@@ -309,10 +328,37 @@ async function cleanupInterruptedJobs({ jobModel = defaultJobModel } = {}) {
   return result;
 }
 
+/**
+ * Server boot cleanup for jobs that never started: jobs are launched with setImmediate right after
+ * being created, so a job still 'queued' when the server boots belongs to a process that died
+ * before running it. Left alone it would block new jobs for the same report forever, because the
+ * partial unique index treats 'queued' as active. Marks them failed so the user can retry.
+ *
+ * @param {object} [options]
+ * @param {object} [options.jobModel=defaultJobModel]
+ * @returns {Promise<object>} MongoDB update result
+ */
+async function failOrphanedQueuedJobs({ jobModel = defaultJobModel } = {}) {
+  return jobModel.updateMany(
+    { status: 'queued' },
+    {
+      $set: {
+        status: 'failed',
+        error: {
+          code: 'INTERRUPTED',
+          message: 'Job was never started because the server restarted. Please try again.',
+        },
+        finishedAt: new Date(),
+      },
+    }
+  );
+}
+
 module.exports = {
   runVerificationJob,
   startVerificationJob,
   runGitHubAnalysisJob,
   startGitHubAnalysisJob,
   cleanupInterruptedJobs,
+  failOrphanedQueuedJobs,
 };

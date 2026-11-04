@@ -28,8 +28,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run oxlint
-        run: npx oxlint src/v2 test/v2
+      - name: Run oxlint (pinned, same version as Frontend)
+        run: npx --yes oxlint@1.71.0 src test
 
       - name: Run automated test suite (in-memory MongoDB & ReplicaSet)
         run: npm test
@@ -40,8 +40,8 @@ jobs:
           GOOGLE_GENAI_API_KEY: dummy_genai_key_for_offline_ci_tests
           PUPPETEER_NO_SANDBOX: "true"
 
-      - name: Run Eval smoke check (offline replay cache)
-        run: node ../evaluation/scripts/eval-runner.js --config ../evaluation/configs/ablation-d-ci.json --limit 5
+      - name: Run full TEST-split evaluation replay (offline, fails on any cache miss, never calls Gemini)
+        run: node ../evaluation/scripts/eval-runner.js --config ../evaluation/configs/ablation-d-ci.json --replay-only
         env:
           NODE_ENV: test
           MONGO_URI: mongodb://127.0.0.1:27017/ci-dummy

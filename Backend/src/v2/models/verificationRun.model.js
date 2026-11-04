@@ -41,6 +41,8 @@ const verificationRunSchema = new mongoose.Schema(
       generationModel: { type: String, default: '' },
       embeddingModel: { type: String, default: '' },
       embeddingDims: { type: Number, default: 768 },
+      // Which linked repositories counted toward scoring (ownership verified) and which did not
+      githubEvidence: { type: mongoose.Schema.Types.Mixed, default: null },
     },
     counts: {
       verified: { type: Number, default: 0 },

@@ -29,6 +29,8 @@ function parseArgs() {
   let splitOverride = null;
   let limit = null;
   let cacheDirOverride = null;
+  // Replay-only: a cache miss is an error and NEVER becomes a live Gemini call (used by CI).
+  let replayOnly = process.env.EVAL_REPLAY_ONLY === 'true';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--config' && i + 1 < args.length) {
@@ -47,6 +49,8 @@ function parseArgs() {
       cacheDirOverride = args[++i];
     } else if (args[i].startsWith('--cache-dir=')) {
       cacheDirOverride = args[i].slice('--cache-dir='.length);
+    } else if (args[i] === '--replay-only') {
+      replayOnly = true;
     } else if (!configPath && (args[i].endsWith('.json') || args[i].includes('config'))) {
       configPath = args[i];
     }
@@ -57,7 +61,7 @@ function parseArgs() {
     process.exit(1);
   }
 
-  return { configPath, splitOverride, limit, cacheDirOverride };
+  return { configPath, splitOverride, limit, cacheDirOverride, replayOnly };
 }
 
 function resolveFilePath(inputPath) {
@@ -81,7 +85,17 @@ function getReportOutputPath({ reportsDir, slug, limit }) {
 }
 
 // Record/replay cache decorator around createLlmClient (structured generation and embeddings)
-function createCachedLlmClient(rawLlmClient, cacheDir, statsCollector) {
+class ReplayCacheMissError extends Error {
+  constructor(kind, key) {
+    super(
+      `Replay-only mode: no cached ${kind} response for key ${String(key)} ` +
+        'Refusing to call Gemini. Re-record the cache deliberately (without --replay-only) or fix the case data.'
+    );
+    this.name = 'ReplayCacheMissError';
+  }
+}
+
+function createCachedLlmClient(rawLlmClient, cacheDir, statsCollector, { replayOnly = false } = {}) {
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
   }
@@ -110,6 +124,9 @@ function createCachedLlmClient(rawLlmClient, cacheDir, statsCollector) {
     }
 
     statsCollector.cacheMisses++;
+    if (replayOnly) {
+      throw new ReplayCacheMissError('generation', cacheKey);
+    }
     const t0 = Date.now();
     const result = await originalGenerate(params);
     const ms = Date.now() - t0;
@@ -167,6 +184,13 @@ function createCachedLlmClient(rawLlmClient, cacheDir, statsCollector) {
     }
 
     if (missingTexts.length > 0) {
+      if (replayOnly) {
+        statsCollector.cacheMisses += missingTexts.length;
+        throw new ReplayCacheMissError(
+          'embedding',
+          crypto.createHash('sha256').update(`embed|${missingTexts[0]}`).digest('hex')
+        );
+      }
       if (originalEmbedTexts) {
         const { vectors: newVectors } = await originalEmbedTexts(missingTexts, options);
         for (let j = 0; j < missingTexts.length; j++) {
@@ -204,7 +228,7 @@ function createCachedLlmClient(rawLlmClient, cacheDir, statsCollector) {
 }
 
 async function runEvaluation() {
-  const { configPath, splitOverride, limit, cacheDirOverride } = parseArgs();
+  const { configPath, splitOverride, limit, cacheDirOverride, replayOnly } = parseArgs();
   const resolvedConfigPath = resolveFilePath(configPath);
 
   if (!fs.existsSync(resolvedConfigPath)) {
@@ -289,7 +313,7 @@ async function runEvaluation() {
     ...(config.weights?.W_ENT_NOGH !== undefined ? { W_ENT_NOGH: config.weights.W_ENT_NOGH } : {}),
   };
 
-  const cachedLlmClient = createCachedLlmClient(baseLlmClient, cacheDir, statsCollector);
+  const cachedLlmClient = createCachedLlmClient(baseLlmClient, cacheDir, statsCollector, { replayOnly });
 
   const evidenceMatchingService = createEvidenceMatchingService({
     llmClient: cachedLlmClient,

@@ -265,6 +265,10 @@ function createVerificationService({
 
     // 1.5 Validate that each githubAnalysisId is linked to this report and user (else 404)
     let githubItems = [];
+    // Only repositories whose OWNERSHIP was verified through GitHub Connect count toward the score.
+    // Pasted public URLs (and links created before ownership verification existed) are analysed and
+    // shown, but excluded here. Repository control is not proof of authorship either way.
+    const githubEvidenceSummary = { usedAnalysisIds: [], excludedUnverifiedAnalysisIds: [] };
     if (Array.isArray(githubAnalysisIds) && githubAnalysisIds.length > 0) {
       const ReportProjectLink = repos.ReportProjectLink || defaultReportProjectLink;
       const GithubAnalysis = repos.GithubAnalysis || defaultGithubAnalysis;
@@ -282,15 +286,22 @@ function createVerificationService({
             'NOT_FOUND'
           );
         }
+        if (link.control && link.control.verified === true) {
+          githubEvidenceSummary.usedAnalysisIds.push(String(aId));
+        } else {
+          githubEvidenceSummary.excludedUnverifiedAnalysisIds.push(String(aId));
+        }
       }
 
-      const analyses = await GithubAnalysis.find({
-        _id: { $in: githubAnalysisIds },
-      });
+      if (githubEvidenceSummary.usedAnalysisIds.length > 0) {
+        const analyses = await GithubAnalysis.find({
+          _id: { $in: githubEvidenceSummary.usedAnalysisIds },
+        });
 
-      for (const a of analyses) {
-        if (Array.isArray(a.evidenceItems)) {
-          githubItems.push(...a.evidenceItems);
+        for (const a of analyses) {
+          if (Array.isArray(a.evidenceItems)) {
+            githubItems.push(...a.evidenceItems);
+          }
         }
       }
     }
@@ -493,6 +504,7 @@ function createVerificationService({
       generationModel,
       embeddingModel,
       embeddingDims,
+      githubEvidence: githubEvidenceSummary,
     };
 
     let session = null;

@@ -1,7 +1,9 @@
 # JobFitAI v2
 
-> **Grounded AI Resume Tailoring & Verification Pipeline**  
-> Protects candidates and hiring managers by placing an automated, multi-signal verification boundary between generative LLMs and the exported resume.
+> **Grounded AI Resume Tailoring & Consistency-Checking Pipeline**  
+> Places an automated, multi-signal check between a generative LLM and the exported resume, so that bullets the evidence you supplied does not support are left out.
+
+> **What "verified" means here.** JobFitAI checks that an AI-written resume is *consistent with the resume text, self-description and (optionally) repositories you provide*. It does **not** independently verify facts such as employers, dates or metrics. Connecting GitHub shows that you *control* a repository; it does not prove that you *wrote* its code.
 
 ---
 
@@ -42,7 +44,7 @@ flowchart TD
     end
 
     subgraph Scoring ["Confidence & Decision"]
-        Score["Logistic Regression Confidence Scoring"]
+        Score["Weighted confidence score (hand-set weights)"]
         Decision{"Confidence Thresholds"}
         Verified["VERIFIED (Score >= 0.80)"]
         Review["NEEDS_REVIEW (0.50 <= Score < 0.80)"]
@@ -86,7 +88,10 @@ flowchart TD
 
 ## 3. Implemented Features
 
-- **Multi-Signal Fact Verification**: Evaluates claims across three independent evidence classes (self-report resume, dependency manifests, and static AST code structures).
+- **Multi-Signal Consistency Checking**: Evaluates claims across three evidence classes (your resume and self-description, dependency manifests, and static AST code structures). Repository evidence only counts toward the score when ownership of the repository is verified through GitHub Connect.
+- **GitHub Connect (GitHub App user authorization)**: Sign in with GitHub (PKCE + `state`, no repository permissions requested) to prove you own a public repository, select it, and analyze it. Tokens are encrypted at rest, never sent to the browser, refreshed automatically, and revocable (Disconnect). Private repositories are not supported in this version. A pasted public URL still works but is marked unverified and is not scored.
+- **Complete Grounded Export**: Besides claim-checked bullets, the exported resume includes name, contact details, skills and education only when they appear in your resume; the AI-written summary is left out. Every dropped item is listed with a reason.
+- **Data Deletion**: Delete a plan (with its drafts, claims and jobs) or your whole account and all its data from the UI.
 - **Prompt & Contradiction Defense**: Defends against prompt injection within job descriptions and adversarial README instructions. Contradictory evidence overrides self-reported claims.
 - **Quote Grounding Guardrails**: Normalizes and asserts verbatim quote overlap between NLI entailment quotes and source text (Levenshtein similarity $\ge 0.90$).
 - **Background Job Execution & Polling**: High-performance TanStack Query polling (`2s` intervals) over stateless job state collections with replica-set transaction rollback resilience.
@@ -112,7 +117,7 @@ flowchart TD
 ### Option A: Running with Docker Compose (One-Command)
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/JobFitAI.git
+git clone https://github.com/fun-s-dev/JobFitAI.git
 cd JobFitAI
 
 # Set your Gemini API key in the environment
@@ -167,6 +172,10 @@ Open `http://localhost:5173` in your browser.
 | `LLM_DAILY_BUDGET` | `400` | Max LLM generation calls allowed per day |
 | `EMBEDDING_DAILY_BUDGET` | `800` | Max embedding API calls allowed per day |
 | `PDF_RENDERING_ENABLED` | `true` (dev) / `false` (prod) | Enables server-side Puppeteer rendering |
+| `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_CALLBACK_URL`, `GITHUB_TOKEN_ENC_KEY` | *Optional as a group* | Enable GitHub Connect. If any is set all four must be valid; the callback must end with `/api/v2/github/connect/callback`; the key is base64 of 32 random bytes. See `Backend/.env.example` |
+| `USER_DAILY_REPORTS`, `USER_DAILY_GITHUB_ANALYSES` | `10`, `20` | Per-user daily caps for AI report requests and GitHub analyses |
+| `RATE_LIMIT_*` | see `.env.example` | Per-window limits for login, sign-up, reports, exports and GitHub requests |
+| `JOB_RETENTION_DAYS` | `30` | Finished background jobs are deleted automatically after this many days |
 
 ### Frontend Configuration (`Frontend/.env`)
 
@@ -272,4 +281,4 @@ The evaluation benchmark contains 196 synthetically constructed test cases spann
 
 *Adversarial injection sample size ($n$): On held-out TEST ($n=56$), 4 prompt injection cases (`prompt_injection`) and 4 README injection cases (`readme_injection`) were tested ($n=8$ adversarial cases total; $n=4$ resume prompt injections). Zero leaks were observed (0/4 resume prompt injections; Wilson 95% score interval upper bound: 48.99%, Rule of Three: 75.0%). Across the entire 196-case benchmark, 14 prompt injections and 14 README injections were evaluated ($n=28$ total adversarial cases), with zero leaks observed (0/14 resume prompt injections, Wilson 95% upper bound: 20.91%, Rule of Three: 21.43%; 0/28 combined injections, Wilson 95% upper bound: 11.35%, Rule of Three: 10.71%).*
 
-*All reported numbers are calculated by the evaluation harness from raw predictions and verified against the report JSON artifacts. See [`docs/results-source-of-truth.md`](docs/results-source-of-truth.md) for full per-ablation confusion matrices, cross-validation metrics, and complete discrepancy analysis.*
+*All reported numbers are calculated by the evaluation harness from raw predictions and verified against the report JSON artifacts. The numbers can be reproduced offline from the recorded model responses, with no Gemini calls: `cd Backend && node ../evaluation/scripts/eval-runner.js --config ../evaluation/configs/ablation-d-ci.json --replay-only` (it fails instead of calling Gemini if any recorded response is missing). Reproducing them shows the pipeline is deterministic on recorded outputs; it is not an independent validation of the model.*

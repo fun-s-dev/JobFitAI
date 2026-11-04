@@ -32,6 +32,7 @@ function createDraftService({ llmClient }) {
       'Generate a tailored, ATS-friendly, human-sounding professional resume draft for a candidate applying for the target job.',
       "Highlight the candidate's strengths and relevant experience. The draft must sound professional and natural, avoiding repetitive or synthetic AI phrasing.",
       'Adhere strictly to the requested JSON schema structure.',
+      "Copy the candidate's name and contact details (email, phone, location, profile links) exactly as written in the resume; leave them empty if they are absent. Never invent contact details.",
     ].join(' ');
 
     const prompt = [

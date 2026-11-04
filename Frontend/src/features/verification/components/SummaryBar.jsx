@@ -29,6 +29,9 @@ export default function SummaryBar({
 
   const excludedBullets = grounded?.excludedBullets || [];
   const allowedBulletIds = grounded?.allowedBulletIds || [];
+  const excludedItems = grounded?.excludedItems || [];
+  const warnings = grounded?.warnings || [];
+  const totalExcluded = excludedBullets.length + excludedItems.length;
 
   return (
     <div className="summary-bar">
@@ -92,6 +95,8 @@ export default function SummaryBar({
             <h3 className="summary-bar__export-title">Grounded Resume Export</h3>
             <p className="summary-bar__export-desc">
               Only bullets where <strong>every attached claim</strong> is verified or approved reach the final resume.
+              Name, contact details, skills and education are included only if they appear in your resume.
+              The AI-written summary is left out.
             </p>
           </div>
 
@@ -138,8 +143,18 @@ export default function SummaryBar({
           </div>
         )}
 
-        {/* Excluded Bullets Toggle & Breakdown */}
-        {excludedBullets.length > 0 ? (
+        {/* Review warnings: entry headers whose wording is not in the resume */}
+        {warnings.length > 0 && (
+          <div className="summary-bar__error-notice" role="status" data-testid="export-warnings">
+            <span>
+              Check before sending:{' '}
+              {warnings.map((w) => `"${w.text}" (${w.reason})`).join('; ')}
+            </span>
+          </div>
+        )}
+
+        {/* Excluded Bullets & Items Toggle & Breakdown */}
+        {totalExcluded > 0 ? (
           <div className="summary-bar__exclusions">
             <button
               type="button"
@@ -148,7 +163,8 @@ export default function SummaryBar({
               onClick={() => setShowExcluded((prev) => !prev)}
             >
               <span className="summary-bar__exclusions-count">
-                ⚠ {excludedBullets.length} bullet{excludedBullets.length > 1 ? 's' : ''} excluded from export
+                ⚠ {totalExcluded} item{totalExcluded > 1 ? 's' : ''} excluded from export
+                {excludedBullets.length > 0 && ` (${excludedBullets.length} bullet${excludedBullets.length > 1 ? 's' : ''})`}
               </span>
               <span className="summary-bar__exclusions-arrow">
                 {showExcluded ? 'Hide details ▲' : 'Show details ▼'}
@@ -171,13 +187,25 @@ export default function SummaryBar({
                     </ul>
                   </div>
                 ))}
+                {excludedItems.map((item, idx) => (
+                  <div key={`item-${idx}`} className="excluded-bullet-item">
+                    <div className="excluded-bullet-item__header">
+                      <span className="excluded-bullet-item__id">{item.section}</span>
+                      <span className="excluded-bullet-item__tag">Dropped</span>
+                    </div>
+                    <p className="excluded-bullet-item__text">"{item.text}"</p>
+                    <ul className="excluded-bullet-item__reasons">
+                      <li>{item.reason}</li>
+                    </ul>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         ) : (
           grounded && (
             <div className="summary-bar__all-clean">
-              ✓ All {allowedBulletIds.length} bullets supported by verified or approved claims. Zero bullets dropped.
+              ✓ All {allowedBulletIds.length} bullets are supported by verified or approved claims. Nothing was dropped.
             </div>
           )
         )}

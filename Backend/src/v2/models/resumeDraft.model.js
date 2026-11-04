@@ -40,6 +40,8 @@ const educationEntrySchema = new mongoose.Schema(
 
 const draftContentSchema = new mongoose.Schema(
   {
+    name: { type: String, default: '' },
+    contact: [{ type: String }],
     summary: { type: String, default: '' },
     experience: [experienceEntrySchema],
     projects: [projectEntrySchema],

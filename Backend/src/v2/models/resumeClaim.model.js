@@ -32,7 +32,8 @@ const entailmentSubSchema = new mongoose.Schema(
 const projectEvidenceSubSchema = new mongoose.Schema(
   {
     score: { type: Number, default: null },
-    evidenceItemIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'EvidenceItem' }],
+    // Ids of evidence items embedded in the linked GithubAnalysis documents (sub-documents, not a model)
+    evidenceItemIds: [{ type: mongoose.Schema.Types.ObjectId }],
     contradictions: [{ type: String }],
   },
   { _id: false }
