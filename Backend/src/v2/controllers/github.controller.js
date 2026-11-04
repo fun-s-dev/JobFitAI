@@ -10,6 +10,7 @@ const GithubConnection = require('../models/githubConnection.model');
 const GithubOauthState = require('../models/githubOauthState.model');
 const ResumeDraft = require('../models/resumeDraft.model');
 const { resolveProjectForRepo, normalizeProjectKey } = require('../core/projectMatching');
+const { defaultProjectName, sanitizeDisplayName } = require('../core/githubProjects');
 const { UNSUPPORTED } = require('../core/githubRepoClassification');
 const { getCfg, isGitHubConnectConfigured } = require('../config/env');
 const { createGitHubAppAuth } = require('../adapters/githubAppAuth');
@@ -324,6 +325,16 @@ function createGithubController({
     return { hasDraft: Boolean(latest && latest.draft), projects };
   }
 
+  /** Analysis ids of the repositories the user confirmed for this report (the GitHub projects). */
+  async function selectedAnalysisIds(reportId, userId) {
+    const ranking = await RepoRanking.findOne({ report: reportId, user: userId }).lean();
+    if (!ranking || !ranking.selectionConfirmedAt) return new Set();
+    const chosen = new Set(ranking.selectedRepoIds || []);
+    return new Set(
+      (ranking.repos || []).filter((r) => chosen.has(r.repoId) && r.analysisId).map((r) => String(r.analysisId))
+    );
+  }
+
   // GET /api/v2/github/links/:reportId
   // The repositories linked to this report (persisted), which draft project each one belongs to,
   // and the draft's project names the user can choose from.
@@ -337,6 +348,7 @@ function createGithubController({
         .lean();
       const nameById = new Map(analyses.map((a) => [String(a._id), a]));
       const { hasDraft, projects } = await latestDraftProjects(reportId, userId);
+      const selected = await selectedAnalysisIds(reportId, userId);
 
       const rows = links.map((link) => {
         const analysis = nameById.get(String(link.analysisId));
@@ -354,6 +366,11 @@ function createGithubController({
           explicitProjectName: link.projectName || null,
           matchedProject: index >= 0 ? projects[index].name : null,
           matchSource: source,
+          // GitHub project settings (a selected repository becomes a project in the draft)
+          selected: selected.has(String(link.analysisId)),
+          displayName: link.displayName || null,
+          defaultName: defaultProjectName(repositoryFullName),
+          authorshipConfirmed: Boolean(link.authorshipConfirmedAt),
         };
       });
 
@@ -362,6 +379,47 @@ function createGithubController({
         links: rows,
         draftProjects: projects.map((p) => p.name),
         hasDraft,
+        requestId: requestIdOf(req),
+      });
+    } catch (err) {
+      return next(err);
+    }
+  }
+
+  // PATCH /api/v2/github/links/:analysisId/details   body: { reportId, displayName?, authorshipConfirmed? }
+  async function setLinkDetails(req, res, next) {
+    const userId = req.user._id || req.user.id;
+    const { analysisId } = req.params;
+    const { displayName, authorshipConfirmed } = req.body;
+    try {
+      const link = await ReportProjectLink.findOne({ report: req.report._id, analysisId, user: userId });
+      if (!link) {
+        return sendError(req, res, 404, 'NOT_FOUND', 'Linked repository not found');
+      }
+      if (!link.control || link.control.verified !== true) {
+        return sendError(req, res, 409, 'NOT_VERIFIED', 'Only repositories you own through GitHub Connect can be used as projects.');
+      }
+
+      if (displayName !== undefined) {
+        if (displayName === null) {
+          link.displayName = null;
+        } else {
+          const cleaned = sanitizeDisplayName(displayName);
+          if (!cleaned) {
+            return sendError(req, res, 400, 'INVALID_NAME', 'The project name cannot be empty.');
+          }
+          link.displayName = cleaned;
+        }
+      }
+      if (authorshipConfirmed !== undefined) {
+        link.authorshipConfirmedAt = authorshipConfirmed ? link.authorshipConfirmedAt || new Date() : null;
+      }
+      await link.save();
+
+      return res.status(200).json({
+        analysisId: String(link.analysisId),
+        displayName: link.displayName || null,
+        authorshipConfirmed: Boolean(link.authorshipConfirmedAt),
         requestId: requestIdOf(req),
       });
     } catch (err) {
@@ -449,6 +507,7 @@ function createGithubController({
     getAnalysisById,
     listReportLinks,
     setLinkProject,
+    setLinkDetails,
     startRanking,
     getReportRanking,
     putRankingSelection,
@@ -486,6 +545,7 @@ module.exports = {
   getAnalysisById: defaultController.getAnalysisById,
   listReportLinks: defaultController.listReportLinks,
   setLinkProject: defaultController.setLinkProject,
+  setLinkDetails: defaultController.setLinkDetails,
   startRanking: defaultController.startRanking,
   getReportRanking: defaultController.getReportRanking,
   putRankingSelection: defaultController.putRankingSelection,

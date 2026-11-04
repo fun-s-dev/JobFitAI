@@ -46,6 +46,20 @@ const connectStartBodySchema = z
   })
   .optional();
 
+// Name shown on the resume for a GitHub project, and the user's confirmation that they built it.
+// At least one field is required; null displayName goes back to the default name.
+const setLinkDetailsBodySchema = z
+  .object({
+    reportId: z.string().regex(objectIdRegex, 'reportId must be a 24-character hex string'),
+    displayName: z.string().max(200).nullable().optional(),
+    authorshipConfirmed: z.boolean().optional(),
+  })
+  .strict()
+  .refine((b) => b.displayName !== undefined || b.authorshipConfirmed !== undefined, {
+    message: 'Provide displayName or authorshipConfirmed',
+    path: ['displayName'],
+  });
+
 const rankingParamsSchema = z.object({
   reportId: z.string().regex(objectIdRegex, 'reportId must be a 24-character hex string'),
 });
@@ -58,6 +72,7 @@ const rankingSelectionBodySchema = z
   .strict();
 
 module.exports = {
+  setLinkDetailsBodySchema,
   rankingParamsSchema,
   rankingSelectionBodySchema,
   analyzeRepoBodySchema,

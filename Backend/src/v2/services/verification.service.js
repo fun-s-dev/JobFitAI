@@ -13,6 +13,7 @@ const defaultReportProjectLink = require('../models/reportProjectLink.model');
 const defaultGithubAnalysis = require('../models/githubAnalysis');
 const { aggregateProjectEvidence } = require('../core/evidenceAggregator');
 const { projectIndexFromBulletId, resolveProjectForRepo } = require('../core/projectMatching');
+const { buildRepoChunks } = require('../core/repoRanking');
 
 class VerificationError extends Error {
   constructor(message, status = 500, code = 'VERIFICATION_ERROR', retryAfter = null) {
@@ -328,14 +329,41 @@ function createVerificationService({
     // 2.5 Tie each verified repository to the draft project it belongs to. Its evidence is then only
     // offered to the claims of that project.
     const draftProjects = Array.isArray(draft.draft.projects) ? draft.draft.projects : [];
+
+    // A project written from a GitHub repository is bound to that repository by id. Its repository may
+    // not have been passed in explicitly, so it is looked up here (it must still be a verified link).
+    const LinkModel = repos.ReportProjectLink || defaultReportProjectLink;
+    const AnalysisModel = repos.GithubAnalysis || defaultGithubAnalysis;
+    const githubProjectIndexByAnalysis = new Map(); // analysisId -> project index
+    draftProjects.forEach((prj, idx) => {
+      if (prj && prj.source === 'github' && prj.analysisId) githubProjectIndexByAnalysis.set(String(prj.analysisId), idx);
+    });
+    for (const [analysisId] of githubProjectIndexByAnalysis) {
+      if (verifiedRepos.some((r) => r.analysisId === analysisId)) continue;
+      if (githubEvidenceSummary.excludedUnverifiedAnalysisIds.includes(analysisId)) continue;
+      const link = await LinkModel.findOne({ report: reportId, analysisId, user: userId });
+      if (link && link.control && link.control.verified === true) {
+        const found = await AnalysisModel.find({ _id: { $in: [analysisId] } });
+        verifiedRepos.push({ analysisId, projectName: link.projectName || null, analysis: (found && found[0]) || null });
+      }
+    }
+
     const itemsByProject = new Map(); // project index -> evidence items
+    const repoChunksByProject = new Map(); // GitHub project index -> that repository's passages (not yet embedded)
     for (const r of verifiedRepos) {
       const repositoryFullName = r.analysis ? r.analysis.repositoryFullName : '';
-      const { index } = resolveProjectForRepo({
-        explicitProjectName: r.projectName,
-        repositoryFullName,
-        projects: draftProjects,
-      });
+      const boundIndex = githubProjectIndexByAnalysis.has(r.analysisId) ? githubProjectIndexByAnalysis.get(r.analysisId) : null;
+      const { index } =
+        boundIndex !== null
+          ? { index: boundIndex }
+          : resolveProjectForRepo({
+              explicitProjectName: r.projectName,
+              repositoryFullName,
+              projects: draftProjects,
+            });
+      if (index >= 0 && r.analysis && boundIndex !== null) {
+        repoChunksByProject.set(index, buildRepoChunks(r.analysis).chunks);
+      }
       if (index < 0 || !r.analysis) {
         githubEvidenceSummary.unmatchedAnalysisIds.push(r.analysisId);
         continue;
@@ -435,6 +463,32 @@ function createVerificationService({
       }
     }
 
+    // 5.2 Passages of the GitHub repositories behind GitHub-sourced projects. Their claims are verified
+    // against these passages ONLY (never against the resume text).
+    const repoChunksWithVectors = new Map(); // project index -> [{ chunk, vector }]
+    if (evidenceMatchingService) {
+      for (const [projectIndex, repoChunks] of repoChunksByProject) {
+        if (repoChunks.length === 0) continue;
+        try {
+          const prepared = await evidenceMatchingService.prepareEvidenceChunks(repoChunks);
+          repoChunksWithVectors.set(projectIndex, prepared.chunksWithVectors);
+        } catch (err) {
+          if (err && (err.name === 'QuotaExhaustedError' || err.code === 'LLM_QUOTA_EXHAUSTED')) {
+            throw err;
+          }
+          if (logger && typeof logger.error === 'function') {
+            logger.error({ err: err.message }, 'Repository passage embedding failed during verification');
+          }
+          throw new VerificationError(
+            'Upstream service temporarily unavailable during embedding',
+            503,
+            'UPSTREAM_UNAVAILABLE',
+            30
+          );
+        }
+      }
+    }
+
     // 5.5 Pre-embed all extracted claims in ONE batched embedTexts call
     let claimVectors = [];
     if (llmClient && typeof llmClient.embedTexts === 'function' && extractedClaims.length > 0) {
@@ -469,6 +523,14 @@ function createVerificationService({
       const items = idx === null ? null : itemsByProject.get(idx);
       return items && items.length > 0 ? items : null;
     };
+    const isGithubProjectClaim = (claim) => {
+      const idx = projectIndexFromBulletId(claim.bulletId);
+      return idx !== null && Boolean(draftProjects[idx]) && draftProjects[idx].source === 'github';
+    };
+    const evidenceFor = (claim) =>
+      isGithubProjectClaim(claim)
+        ? repoChunksWithVectors.get(projectIndexFromBulletId(claim.bulletId)) || [] // none = cannot be verified
+        : chunksWithVectors;
     const projectNameForClaim = (claim) => {
       const idx = projectIndexFromBulletId(claim.bulletId);
       return idx !== null && draftProjects[idx] ? draftProjects[idx].name : '';
@@ -491,7 +553,7 @@ function createVerificationService({
             const evaluated = await verifyOne({
               claim,
               claimVector: claimVectors[idx] || null,
-              chunksWithVectors,
+              chunksWithVectors: evidenceFor(claim),
               githubItems: itemsForClaim(claim),
               signals: {
                 similarity: true,

@@ -19,12 +19,14 @@ const {
   setLinkProjectBodySchema,
   rankingParamsSchema,
   rankingSelectionBodySchema,
+  setLinkDetailsBodySchema,
 } = require('../schemas/github');
 const {
   postAnalyzeRepo,
   getAnalysisById,
   listReportLinks,
   setLinkProject,
+  setLinkDetails,
   startRanking,
   getReportRanking,
   putRankingSelection,
@@ -162,6 +164,15 @@ router.put(
   validate({ params: setLinkProjectParamsSchema, body: setLinkProjectBodySchema }),
   loadOwnedReport,
   setLinkProject
+);
+
+// PATCH /api/v2/github/links/:analysisId/details  -> project name shown on the resume + "I built this" confirmation
+router.patch(
+  '/links/:analysisId/details',
+  authUser,
+  validate({ params: setLinkProjectParamsSchema, body: setLinkDetailsBodySchema }),
+  loadOwnedReport,
+  setLinkDetails
 );
 
 // GET /api/v2/github/analysis/:analysisId

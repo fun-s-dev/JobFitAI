@@ -1,21 +1,40 @@
 const ResumeDraft = require('../models/resumeDraft.model');
 const VerificationRun = require('../models/verificationRun.model');
 const ResumeClaim = require('../models/resumeClaim.model');
+const ReportProjectLink = require('../models/reportProjectLink.model');
+const RepoRanking = require('../models/repoRanking.model');
+const GithubAnalysis = require('../models/githubAnalysis');
 const { createDraftService } = require('../services/draft.service');
+const { createProjectDraftService } = require('../services/projectDraft.service');
 const { createLlmClient } = require('../adapters/llmClient');
 const pdfRenderer = require('../adapters/pdfRenderer');
 const { renderDraftToHtml } = require('../templates/resumePdfTemplate');
 const { buildGroundedExport } = require('../core/groundedExport');
+const { applyGithubProjectRules } = require('../core/githubProjects');
 const { getCfg } = require('../config/env');
 
+// One client for the draft and the GitHub project bullets, so their calls share one pacer
+const sharedLlmClient = createLlmClient();
 const defaultDraftService = createDraftService({
-  llmClient: createLlmClient(),
+  llmClient: sharedLlmClient,
+});
+const defaultProjectDraftService = createProjectDraftService({
+  llmClient: sharedLlmClient,
+  RankingModel: RepoRanking,
+  LinkModel: ReportProjectLink,
+  AnalysisModel: GithubAnalysis,
 });
 
 let activeDraftService = defaultDraftService;
+let activeProjectDraftService = defaultProjectDraftService;
 
 function setDraftService(service) {
   activeDraftService = service || defaultDraftService;
+}
+
+/** Test hook (same pattern as setDraftService). */
+function setProjectDraftService(service) {
+  activeProjectDraftService = service || defaultProjectDraftService;
 }
 
 class ExportError extends Error {
@@ -38,6 +57,8 @@ function toPlainDraft(draftRecord) {
 
 function createDraftController({
   draftService = null,
+  projectDraftService = null,
+  linkModel = ReportProjectLink,
   draftModel = ResumeDraft,
   runModel = VerificationRun,
   claimModel = ResumeClaim,
@@ -88,10 +109,20 @@ function createDraftController({
       ? await claimModel.find({ run: run._id, report: report._id, user: userId })
       : [];
 
-    const grounded = buildGroundedExport(toPlainDraft(draftRecord), claims, [
+    const plainDraft = toPlainDraft(draftRecord);
+    const grounded = buildGroundedExport(plainDraft, claims, [
       report.resume || '',
       report.selfDescription || '',
     ]);
+
+    // GitHub projects are exported only after the user confirmed they built them, under the name they chose
+    const hasGithubProjects = (plainDraft.projects || []).some((p) => p && p.source === 'github' && p.analysisId);
+    if (hasGithubProjects) {
+      const links = await linkModel.find({ report: report._id, user: userId });
+      const applied = applyGithubProjectRules({ draft: plainDraft, exportDraft: grounded.exportDraft, links });
+      grounded.exportDraft = applied.exportDraft;
+      grounded.excludedItems = [...grounded.excludedItems, ...applied.excludedItems];
+    }
 
     return {
       run,
@@ -122,14 +153,39 @@ function createDraftController({
       const report = req.report;
       const userId = req.user._id || req.user.id;
       const serviceToUse = draftService || activeDraftService;
+      const projectService = projectDraftService || activeProjectDraftService;
 
-      const draft = await serviceToUse.generateDraft({
-        resume: report.resume || '',
-        selfDescription: report.selfDescription || '',
-        jobDescription: report.jobDescription || '',
-        user: String(userId),
-        requestId,
-      });
+      // The tailored resume and the GitHub projects are independent, so they are produced together.
+      // A failure while writing GitHub projects never loses the draft: the resume's own projects stay
+      // and the response says what went wrong.
+      const buildGithubProjects = async () => {
+        try {
+          return await projectService.buildGithubProjects({ userId: String(userId), reportId: String(report._id), requestId });
+        } catch (projErr) {
+          return { configured: true, projects: [], skipped: [], error: projErr };
+        }
+      };
+      const [draft, github] = await Promise.all([
+        serviceToUse.generateDraft({
+          resume: report.resume || '',
+          selfDescription: report.selfDescription || '',
+          jobDescription: report.jobDescription || '',
+          user: String(userId),
+          requestId,
+        }),
+        buildGithubProjects(),
+      ]);
+
+      // The Projects section comes from the selected GitHub repositories when there are any
+      if (github.projects.length > 0) {
+        draft.projects = github.projects;
+      }
+      const githubProjects = {
+        configured: github.configured,
+        used: github.projects.map((p) => ({ name: p.name, repo: p.repoFullName })),
+        skipped: github.skipped,
+        error: github.error ? github.error.message || 'GitHub projects could not be written.' : null,
+      };
 
       // Get current version count for this report
       const latestCount = await draftModel.countDocuments({ report: report._id, user: userId });
@@ -146,6 +202,7 @@ function createDraftController({
         draft: savedDraft.draft,
         draftId: savedDraft._id,
         version: savedDraft.version,
+        githubProjects,
         requestId,
       });
     } catch (err) {
@@ -322,4 +379,5 @@ module.exports = {
   renderDraftPdf: defaultController.renderDraftPdf,
   getGroundedDraftInfo: defaultController.getGroundedDraftInfo,
   setDraftService,
+  setProjectDraftService,
 };

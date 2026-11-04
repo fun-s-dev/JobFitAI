@@ -4,6 +4,8 @@ const bulletSchema = new mongoose.Schema(
   {
     id: { type: String, required: true },
     text: { type: String, required: true },
+    // Repository passages the bullet was written from (GitHub projects only)
+    sources: [{ type: String }],
   },
   { _id: false }
 );
@@ -24,6 +26,9 @@ const projectEntrySchema = new mongoose.Schema(
     id: { type: String, required: true },
     name: { type: String, required: true },
     bullets: [bulletSchema],
+    source: { type: String, enum: ['resume', 'github'], default: undefined },
+    analysisId: { type: mongoose.Schema.Types.ObjectId, ref: 'GithubAnalysis', default: undefined },
+    repoFullName: { type: String, default: undefined },
   },
   { _id: false }
 );

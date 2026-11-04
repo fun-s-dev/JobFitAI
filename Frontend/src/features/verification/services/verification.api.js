@@ -119,6 +119,15 @@ export async function getReportGithubLinks(reportId) {
 }
 
 /**
+ * Name shown on the resume for a GitHub project and the user's confirmation that they built it.
+ * Either field may be sent alone; displayName null goes back to the default name.
+ */
+export async function updateGithubProjectDetails(reportId, analysisId, details) {
+  const response = await api.patch(`/api/v2/github/links/${analysisId}/details`, { reportId, ...details });
+  return response.data;
+}
+
+/**
  * Starts the background job that analyses the user's repositories and ranks them against the
  * report's job description. Returns 202 { jobId, status }.
  */

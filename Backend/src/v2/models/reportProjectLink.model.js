@@ -46,6 +46,11 @@ const reportProjectLinkSchema = new mongoose.Schema(
     // The draft project this repository belongs to, chosen by the user. When null the repository
     // is matched to a draft project by name (see core/projectMatching.js).
     projectName: { type: String, default: null, maxlength: 200 },
+    // Name shown on the resume for a GitHub project (null = the default derived from the repository name)
+    displayName: { type: String, default: null, maxlength: 100 },
+    // When the user confirmed "I built this project". Owning a repository does not show authorship, so a
+    // GitHub project is only exported after this confirmation.
+    authorshipConfirmedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

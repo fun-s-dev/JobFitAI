@@ -10,6 +10,7 @@ vi.mock('../src/features/verification/services/verification.api', () => ({
   getLatestDraft: vi.fn(),
   getReportGithubLinks: vi.fn(),
   setGithubLinkProject: vi.fn(),
+  updateGithubProjectDetails: vi.fn(),
   createDraftForReport: vi.fn(),
   startVerificationJob: vi.fn(),
   getJobById: vi.fn(),
@@ -32,6 +33,7 @@ import {
   getLatestDraft,
   getReportGithubLinks,
   setGithubLinkProject,
+  updateGithubProjectDetails,
   createDraftForReport,
   startVerificationJob,
 } from '../src/features/verification/services/verification.api';
@@ -215,5 +217,139 @@ describe('VerificationPage linked repositories (Phase 1)', () => {
     renderPage();
     const notice = await screen.findByTestId('unmatched-github-notice');
     expect(notice.textContent).toMatch(/did not match any project in the draft/i);
+  });
+});
+
+describe('VerificationPage GitHub projects (Phase 2 step B)', () => {
+  const projectLink = (overrides = {}) => ({
+    analysisId: 'g1',
+    repositoryFullName: 'me/Banking-System-backend',
+    verified: true,
+    explicitProjectName: null,
+    matchedProject: 'Banking System Backend',
+    matchSource: 'name',
+    selected: true,
+    displayName: null,
+    defaultName: 'Banking System Backend',
+    authorshipConfirmed: false,
+    ...overrides,
+  });
+  const linksWith = (...links) => ({ hasDraft: true, draftProjects: ['Banking System Backend'], links });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getVerificationRun.mockRejectedValue(notFound());
+    getLatestDraft.mockResolvedValue({ projects: [] });
+    getInterviewReportById.mockResolvedValue({ interviewReport: { _id: 'r1', resume: 'Some resume text here' } });
+    getReportGithubLinks.mockResolvedValue(linksWith(projectLink()));
+  });
+
+  it('shows each selected repository as a GitHub project with its name and a warning that it is not confirmed', async () => {
+    renderPage();
+    const card = await screen.findByTestId('github-project-g1');
+    expect(card.textContent).toMatch(/Banking System Backend/);
+    expect(card.textContent).toMatch(/from me\/Banking-System-backend/);
+    expect(screen.getByTestId('not-confirmed-g1').textContent).toMatch(/will not appear in your exported resume/);
+    expect(screen.getByTestId('github-projects').textContent).toMatch(/written from these repositories/);
+    // a selected repository is not offered the "belongs to project" dropdown
+    expect(screen.queryByLabelText('Belongs to project')).toBeNull();
+  });
+
+  it('confirming "I built this project" is sent to the server and refreshes the list', async () => {
+    updateGithubProjectDetails.mockResolvedValue({ authorshipConfirmed: true });
+    renderPage();
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'I built Banking System Backend' }));
+    await waitFor(() => expect(updateGithubProjectDetails).toHaveBeenCalledWith('r1', 'g1', { authorshipConfirmed: true }));
+    await waitFor(() => expect(getReportGithubLinks.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it('withdrawing the confirmation is sent as false', async () => {
+    updateGithubProjectDetails.mockResolvedValue({ authorshipConfirmed: false });
+    getReportGithubLinks.mockResolvedValue(linksWith(projectLink({ authorshipConfirmed: true })));
+    renderPage();
+    const box = await screen.findByRole('checkbox', { name: 'I built Banking System Backend' });
+    expect(box.checked).toBe(true);
+    expect(screen.queryByTestId('not-confirmed-g1')).toBeNull();
+    fireEvent.click(box);
+    await waitFor(() => expect(updateGithubProjectDetails).toHaveBeenCalledWith('r1', 'g1', { authorshipConfirmed: false }));
+  });
+
+  it('lets the user rename the project, and clear the name to go back to the default', async () => {
+    updateGithubProjectDetails.mockResolvedValue({ displayName: 'Backend Ledger' });
+    renderPage();
+    const input = await screen.findByLabelText('Name on your resume');
+    const save = screen.getByRole('button', { name: 'Save name' });
+    expect(save.disabled).toBe(true); // nothing changed yet
+
+    fireEvent.change(input, { target: { value: 'Backend Ledger' } });
+    expect(save.disabled).toBe(false);
+    fireEvent.click(save);
+    await waitFor(() => expect(updateGithubProjectDetails).toHaveBeenCalledWith('r1', 'g1', { displayName: 'Backend Ledger' }));
+  });
+
+  it('sends null when the name field is emptied', async () => {
+    updateGithubProjectDetails.mockResolvedValue({ displayName: null });
+    getReportGithubLinks.mockResolvedValue(linksWith(projectLink({ displayName: 'Backend Ledger' })));
+    renderPage();
+    const input = await screen.findByLabelText('Name on your resume');
+    expect(input.value).toBe('Backend Ledger');
+    fireEvent.change(input, { target: { value: '   ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save name' }));
+    await waitFor(() => expect(updateGithubProjectDetails).toHaveBeenCalledWith('r1', 'g1', { displayName: null }));
+  });
+
+  it('shows the server’s reason when saving fails', async () => {
+    updateGithubProjectDetails.mockRejectedValue({ response: { status: 400, data: { message: 'The project name cannot be empty.' } } });
+    renderPage();
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'I built Banking System Backend' }));
+    expect(await screen.findByText(/project name cannot be empty/i)).toBeTruthy();
+  });
+
+  it('keeps repositories that are not selected as projects in the "other linked repositories" list', async () => {
+    getReportGithubLinks.mockResolvedValue(
+      linksWith(projectLink(), projectLink({ analysisId: 'g2', repositoryFullName: 'me/old-link', selected: false, matchedProject: null, matchSource: 'none' }))
+    );
+    renderPage();
+    const other = await screen.findByTestId('other-linked-repos');
+    expect(other.textContent).toMatch(/me\/old-link/);
+    expect(other.textContent).not.toMatch(/Banking-System-backend/);
+    expect(await screen.findByLabelText('Belongs to project')).toBeTruthy();
+  });
+
+  it('tells the user which GitHub projects the generated draft is made of', async () => {
+    getLatestDraft.mockResolvedValue(null);
+    createDraftForReport.mockResolvedValue({
+      githubProjects: { configured: true, used: [{ name: 'Banking System Backend', repo: 'me/Banking-System-backend' }], skipped: [], error: null },
+    });
+    renderPage();
+    fireEvent.click((await screen.findAllByRole('button', { name: /1\. generate resume draft/i }))[0]);
+    const notice = await screen.findByText(/written from 1 GitHub project: Banking System Backend/);
+    expect(notice.textContent).toMatch(/Confirm that you built each one/);
+  });
+
+  it('reports skipped repositories and a failure to write GitHub projects, without hiding the draft', async () => {
+    getLatestDraft.mockResolvedValue(null);
+    createDraftForReport.mockResolvedValue({
+      githubProjects: {
+        configured: true,
+        used: [],
+        skipped: [{ repo: 'me/a', reason: 'No bullets supported by the README of me/a could be written, so it was skipped.' }],
+        error: 'Gemini is down',
+      },
+    });
+    renderPage();
+    fireEvent.click((await screen.findAllByRole('button', { name: /1\. generate resume draft/i }))[0]);
+    const notice = await screen.findByText(/No bullets supported by the README of me\/a/);
+    expect(notice.textContent).toMatch(/GitHub projects could not be written \(Gemini is down\)/);
+    expect(notice.textContent).toMatch(/your resume's own projects were kept/);
+  });
+
+  it('says nothing about GitHub when no repositories are used', async () => {
+    getLatestDraft.mockResolvedValue(null);
+    createDraftForReport.mockResolvedValue({ githubProjects: { configured: false, used: [], skipped: [], error: null } });
+    renderPage();
+    fireEvent.click((await screen.findAllByRole('button', { name: /1\. generate resume draft/i }))[0]);
+    const notice = await screen.findByText(/Tailored resume draft generated/);
+    expect(notice.textContent).not.toMatch(/GitHub/);
   });
 });

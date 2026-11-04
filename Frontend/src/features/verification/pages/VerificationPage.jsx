@@ -140,10 +140,27 @@ export default function VerificationPage() {
     setDraftError(null);
     setDraftNotice(null);
     try {
-      await createDraftForReport(reportId);
-      setDraftNotice('Tailored resume draft generated. Run verification to check it before exporting.');
+      const created = await createDraftForReport(reportId);
+      const gh = created?.githubProjects;
+      const parts = ['Tailored resume draft generated.'];
+      if (gh?.used?.length > 0) {
+        parts.push(
+          `Your Projects section was written from ${gh.used.length} GitHub project${gh.used.length === 1 ? '' : 's'}: ${gh.used
+            .map((p) => p.name)
+            .join(', ')}. Confirm that you built each one below so it is included in your export.`
+        );
+      }
+      if (gh?.skipped?.length > 0) parts.push(gh.skipped.map((s) => s.reason).join(' '));
+      if (gh?.error) {
+        parts.push(
+          `GitHub projects could not be written (${gh.error}), so your resume's own projects were kept. Generate the draft again to retry.`
+        );
+      }
+      if (!gh?.error) parts.push('Run verification to check it before exporting.');
+      setDraftNotice(parts.join(' '));
       queryClient.invalidateQueries({ queryKey: ['draft', reportId] });
       queryClient.invalidateQueries({ queryKey: ['githubLinks', reportId] }); // the draft's projects changed
+      queryClient.invalidateQueries({ queryKey: ['repoRanking', reportId] });
       refetch();
     } catch (err) {
       setDraftError(

@@ -478,6 +478,99 @@ describe('verification.service (unit)', () => {
       });
     });
 
+    describe('GitHub-sourced projects are verified against their repository, never against the resume', () => {
+      const REPORT = '507f1f77bcf86cd799439011';
+      const USER = '507f1f77bcf86cd799439012';
+      const ANALYSIS = '507f1f77bcf86cd799439099';
+
+      const githubDraft = {
+        _id: '507f1f77bcf86cd799439013',
+        draft: {
+          experience: [{ id: 'exp0', company: 'Acme', role: 'Intern', bullets: [{ id: 'exp0.b0', text: 'Built internal tools' }] }],
+          projects: [
+            {
+              id: 'prj0',
+              name: 'Backend Ledger',
+              source: 'github',
+              analysisId: ANALYSIS,
+              repoFullName: 'me/Banking-System-backend',
+              bullets: [{ id: 'prj0.b0', text: 'Built ledger-based transfers with MongoDB sessions' }],
+            },
+          ],
+        },
+      };
+      const repoAnalysis = {
+        _id: ANALYSIS,
+        repositoryFullName: 'me/Banking-System-backend',
+        description: null,
+        languages: { JavaScript: 1 },
+        dependencies: [{ name: 'mongoose' }],
+        readmeText: 'A banking backend with ledger-based transfers using MongoDB sessions.',
+        evidenceItems: [{ _id: 'item_1', type: 'source_file', skill: 'MongoDB', strength: 0.8, contradiction: false }],
+      };
+
+      function arrange({ linkControl = { verified: true, method: 'github_app_identity' }, passIds = false } = {}) {
+        mockRepos.InterviewReport.findOne.mockResolvedValue({ _id: REPORT, user: USER, resume: 'I wrote internal tools with Express at Acme during my internship. '.repeat(3) });
+        mockRepos.ResumeDraft.findOne.mockReturnValue({ sort: vi.fn().mockResolvedValue(githubDraft) });
+        mockRepos.ReportProjectLink.findOne.mockResolvedValue({ report: REPORT, analysisId: ANALYSIS, control: linkControl });
+        mockRepos.GithubAnalysis.find.mockResolvedValue([repoAnalysis]);
+        mockClaimExtractionService.extractClaimsFromBullets.mockResolvedValue({
+          claims: [
+            { bulletId: 'exp0.b0', claimText: 'Built internal tools', claimType: 'responsibility', skills: [], numbers: [] },
+            { bulletId: 'prj0.b0', claimText: 'Built ledger-based transfers with MongoDB sessions', claimType: 'technology', skills: ['MongoDB'], numbers: [] },
+          ],
+          incompleteBullets: [],
+        });
+        // Retrieval returns the first passage it is given, so the test sees exactly which passages were offered
+        mockEvidenceMatchingService.matchClaim = vi.fn(async (_text, chunksWithVectors) =>
+          chunksWithVectors.slice(0, 1).map((it) => ({ chunk: it.chunk, rawCosine: 0.9, similarityScore: 1 }))
+        );
+        const service = createVerificationService({
+          llmClient: mockLlmClient,
+          evidenceMatchingService: mockEvidenceMatchingService,
+          entailmentService: mockEntailmentService,
+          claimExtractionService: mockClaimExtractionService,
+          repos: mockRepos,
+        });
+        return service.verifyReport({ reportId: REPORT, userId: USER, githubAnalysisIds: passIds ? [ANALYSIS] : [] });
+      }
+
+      const judgedWith = (bulletId) =>
+        mockEntailmentService.evaluateClaim.mock.calls.find(([arg]) => arg.claim.bulletId === bulletId)[0].evidenceChunks;
+
+      it('judges a GitHub project’s claim only against its repository passages, and the work-experience claim only against the resume', async () => {
+        const result = await arrange();
+
+        const projectEvidence = judgedWith('prj0.b0');
+        expect(projectEvidence.length).toBeGreaterThan(0);
+        expect(projectEvidence.every((c) => ['readme', 'metadata', 'dependencies'].includes(c.source))).toBe(true);
+        expect(projectEvidence.some((c) => c.source === 'resume')).toBe(false);
+
+        const experienceEvidence = judgedWith('exp0.b0');
+        expect(experienceEvidence.every((c) => c.source === 'resume' || c.source === 'self_description')).toBe(true);
+
+        const claim = result.claims.find((c) => c.bulletId === 'prj0.b0');
+        expect(claim.project).toBe('Backend Ledger');
+        expect(claim.projectEvidence.score).toBe(0.8); // the repository's code evidence still counts
+        expect(result.run.config.githubEvidence.projectMatches).toEqual([
+          { analysisId: ANALYSIS, repository: 'me/Banking-System-backend', project: 'Backend Ledger' },
+        ]);
+      });
+
+      it('finds the repository by the project’s analysisId even when the caller did not pass it', async () => {
+        await arrange({ passIds: false });
+        expect(mockRepos.ReportProjectLink.findOne).toHaveBeenCalledWith({ report: REPORT, analysisId: ANALYSIS, user: USER });
+        expect(judgedWith('prj0.b0').length).toBeGreaterThan(0);
+      });
+
+      it('gives a GitHub project NO evidence when its repository is not a verified link, instead of falling back to the resume', async () => {
+        await arrange({ linkControl: { verified: false, method: 'pasted_public_url' } });
+        expect(judgedWith('prj0.b0')).toEqual([]);
+        // the work-experience claim is unaffected
+        expect(judgedWith('exp0.b0').length).toBeGreaterThan(0);
+      });
+    });
+
     describe('repository evidence belongs to its own project only', () => {
       const REPORT = '507f1f77bcf86cd799439011';
       const USER = '507f1f77bcf86cd799439012';

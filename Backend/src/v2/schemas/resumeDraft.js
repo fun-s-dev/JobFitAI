@@ -4,6 +4,8 @@ const { z } = require('zod');
 const BulletSchema = z.object({
   id: z.string().regex(/^(?:exp|prj)\d+\.b\d+$/, 'Bullet id must follow expX.bY or prjX.bY format'),
   text: z.string().min(1, 'Bullet text cannot be empty'),
+  // Ids of the repository passages this bullet was written from (GitHub projects only)
+  sources: z.array(z.string()).optional(),
 });
 
 // Canonical Experience Entry Schema
@@ -20,6 +22,11 @@ const ProjectEntrySchema = z.object({
   id: z.string().regex(/^prj\d+$/, 'Project id must follow prjX format'),
   name: z.string().min(1),
   bullets: z.array(BulletSchema),
+  // 'github' projects are written from a connected repository's own README/description/stack.
+  // Their claims are verified against that repository (analysisId), not against the resume text.
+  source: z.enum(['resume', 'github']).optional(),
+  analysisId: z.string().optional(),
+  repoFullName: z.string().optional(),
 });
 
 // Canonical Education Entry Schema

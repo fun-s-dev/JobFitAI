@@ -64,8 +64,11 @@ function buildRepoChunks(analysis, { maxChunks = MAX_CHUNKS_PER_REPO } = {}) {
     chunks.push({
       id: 'metadata_chunk_0',
       source: 'metadata',
+      section: 'Repository description',
       text: description,
       embedText: `${repoName}: ${description}`,
+      start: 0,
+      end: description.length,
     });
   }
 
@@ -81,14 +84,30 @@ function buildRepoChunks(analysis, { maxChunks = MAX_CHUNKS_PER_REPO } = {}) {
   const uniqueStack = [...new Set(stack)].slice(0, 40);
   if (uniqueStack.length > 0) {
     const text = `Technologies used: ${uniqueStack.join(', ')}`;
-    chunks.push({ id: 'stack_chunk_0', source: 'dependencies', text, embedText: `${repoName}. ${text}` });
+    chunks.push({
+      id: 'stack_chunk_0',
+      source: 'dependencies',
+      section: 'Technology stack',
+      text,
+      embedText: `${repoName}. ${text}`,
+      start: 0,
+      end: text.length,
+    });
   }
 
   const readme = analysis && typeof analysis.readmeText === 'string' ? normalizeText(analysis.readmeText) : '';
   if (readme) {
     const readmeChunks = chunkText(readme, { source: 'readme', maxChars: 500 });
     for (const c of readmeChunks) {
-      chunks.push({ id: c.id, source: 'readme', text: c.text, embedText: `${repoName}: ${c.text}` });
+      chunks.push({
+        id: c.id,
+        source: 'readme',
+        section: 'README',
+        text: c.text,
+        embedText: `${repoName}: ${c.text}`,
+        start: c.start,
+        end: c.end,
+      });
     }
   }
 
