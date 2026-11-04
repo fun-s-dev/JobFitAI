@@ -11,7 +11,9 @@ const { normalizeText } = require('./normalizeText');
 const { cosineSimilarity } = require('./cosineSimilarity');
 const { scaleSimilarity } = require('./similarityScore');
 
-const MAX_CHUNKS_PER_REPO = 24;
+// Kept small on purpose: the free embedding tier allows about 90 texts per minute, and a ranking embeds
+// every chunk of up to 15 repositories (results are cached by text, so a repeat run is free).
+const MAX_CHUNKS_PER_REPO = 14;
 
 // Similarity scale, measured on the REAL gemini-embedding-001 (768 dimensions, SEMANTIC_SIMILARITY):
 // even completely unrelated text scores about 0.76-0.82 cosine against a job requirement, and clearly

@@ -124,7 +124,11 @@ export default function ProjectRankingPanel({ reportId, onSelectionConfirmed }) 
 
       {job.isRunning && (
         <p role='status' style={noteStyle}>
-          {job.totalCount > 0 ? `Analysed ${job.doneCount} of ${job.totalCount} repositories…` : 'Starting…'}
+          {job.totalCount > 0 && job.doneCount >= job.totalCount
+            ? 'Comparing your repositories with the job. On the free Gemini tier this can take a few minutes; keep this page open.'
+            : job.totalCount > 0
+            ? `Analysed ${job.doneCount} of ${job.totalCount} repositories…`
+            : 'Starting…'}
         </p>
       )}
 

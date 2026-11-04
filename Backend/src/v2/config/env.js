@@ -32,6 +32,8 @@ const envSchema = z
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
     LLM_GENERATE_RPM: z.coerce.number().int().positive().default(10),
     LLM_EMBED_RPM: z.coerce.number().int().positive().default(80),
+    // Texts (not calls) embedded per minute; Google's free tier counts each text as a request (limit 100)
+    LLM_EMBED_TEXTS_PER_MIN: z.coerce.number().int().positive().default(90),
     THRESHOLD_VERIFIED: z.coerce.number().min(0).max(1).default(0.8),
     THRESHOLD_REVIEW: z.coerce.number().min(0).max(1).default(0.5),
     SIM_LO: z.coerce.number().min(-1).max(1).default(0.5),

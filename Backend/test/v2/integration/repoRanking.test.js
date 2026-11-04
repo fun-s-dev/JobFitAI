@@ -366,6 +366,32 @@ describe('repository ranking (routes + job + service)', () => {
       expect(await RepoRanking.countDocuments()).toBe(0);
     });
 
+    it('turns Google’s raw per-minute 429 into a readable message instead of dumping the JSON', async () => {
+      const { createRepoRankingService } = require('../../../src/v2/services/repoRanking.service');
+      const { buildLinkUpdate } = require('../../../src/v2/services/githubEvidence.service');
+      const { connectService } = buildApi();
+      const rawGoogleError = new Error(
+        '{"error":{"code":429,"message":"You exceeded your current quota","status":"RESOURCE_EXHAUSTED"}}'
+      );
+      api.setRepoRankingService(
+        createRepoRankingService({
+          connectService,
+          githubEvidenceService: { analyzeRepository: vi.fn(async () => ({ analysis: { _id: new kit.mongoose.Types.ObjectId(), readmeText: 'x' } })) },
+          llmClient: { embedTexts: vi.fn(async () => { throw rawGoogleError; }) },
+          requirementsService: { extractRequirements: async () => REQUIREMENTS.map((r) => ({ ...r })) },
+          RankingModel: RepoRanking,
+          ReportModel: InterviewReport,
+          LinkModel: ReportProjectLink,
+          buildLinkUpdate,
+        })
+      );
+      await startRanking();
+      const job = await waitForJob('failed');
+      expect(job.error.code).toBe('RATE_LIMITED');
+      expect(job.error.message).toMatch(/per-minute limit.*try again/i);
+      expect(job.error.message).not.toMatch(/RESOURCE_EXHAUSTED|\{/);
+    });
+
     it('fails the job when the job description has no usable requirements', async () => {
       const { JobRequirementsError } = require('../../../src/v2/services/jobRequirements.service');
       const { createRepoRankingService } = require('../../../src/v2/services/repoRanking.service');

@@ -6,6 +6,7 @@ const { withTimeout, withRetry, isTransientError } = require('../utils/resilienc
 const { normalizeVector } = require('../core/normalize');
 const { vectorToBuffer, bufferToVector } = require('../core/vectorBuffer');
 const { createLimiter } = require('../utils/limiter');
+const { createWindowLimiter } = require('../utils/windowLimiter');
 const { LlmValidationError, LlmClientError } = require('../errors/LlmErrors');
 const LlmCall = require('../models/llmCall.model');
 const EmbeddingCache = require('../models/embeddingCache.model');
@@ -37,6 +38,14 @@ function createPacer(rpm) {
   };
 }
 
+// The quota belongs to the API key/project, not to a client object, and several parts of the app build
+// their own client. They must therefore share one embedding window per limit value.
+const sharedEmbedWindows = new Map();
+function getSharedEmbedWindow(limit) {
+  if (!sharedEmbedWindows.has(limit)) sharedEmbedWindows.set(limit, createWindowLimiter(limit));
+  return sharedEmbedWindows.get(limit);
+}
+
 function createLlmClient({
   genai,
   cfg = {},
@@ -61,6 +70,11 @@ function createLlmClient({
   const embedRpm = Number(cfg.LLM_EMBED_RPM || process.env.LLM_EMBED_RPM || 80);
   const generatePacer = createPacer(generateRpm);
   const embedPacer = createPacer(embedRpm);
+  // The free tier allows 100 embedding REQUESTS per minute and counts every text in a batch as one
+  // request. Stay under it by counting texts (default 90), and keep batches no larger than that.
+  const embedTextsPerMin = Number(cfg.LLM_EMBED_TEXTS_PER_MIN || process.env.LLM_EMBED_TEXTS_PER_MIN || 90);
+  const embedTextWindow = getSharedEmbedWindow(embedTextsPerMin);
+  const embedBatchSize = Math.max(1, Math.min(EMBED_BATCH_SIZE, embedTextsPerMin));
 
   async function logCallSafely(data) {
     try {
@@ -313,8 +327,8 @@ function createLlmClient({
     // 3. Batch and embed misses under bounded concurrency
     if (missingItems.length > 0) {
       const batches = [];
-      for (let i = 0; i < missingItems.length; i += EMBED_BATCH_SIZE) {
-        batches.push(missingItems.slice(i, i + EMBED_BATCH_SIZE));
+      for (let i = 0; i < missingItems.length; i += embedBatchSize) {
+        batches.push(missingItems.slice(i, i + embedBatchSize));
       }
 
       const batchPromises = batches.map((batch) =>
@@ -326,6 +340,7 @@ function createLlmClient({
           try {
             const response = await withRetry(
               async () => {
+                await embedTextWindow(batch.length);
                 await embedPacer();
                 return withTimeout(
                   async ({ signal }) => {

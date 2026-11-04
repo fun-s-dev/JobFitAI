@@ -339,15 +339,21 @@ async function runRepoRankingJob({ jobId, rankingService, jobModel = defaultJobM
       err instanceof QuotaExhaustedError ||
       err.name === 'QuotaExhaustedError' ||
       err.code === 'LLM_QUOTA_EXHAUSTED';
+    // Google's per-minute limit arrives as a raw JSON error body; show a readable message instead
+    const isRateLimited =
+      !isQuota &&
+      (err.status === 429 || err.code === 429 || /RESOURCE_EXHAUSTED|"code":\s*429|rate limit/i.test(String(err.message || '')));
     await jobModel.updateOne(
       { _id: job._id },
       {
         $set: {
           status: 'failed',
           error: {
-            code: isQuota ? 'QUOTA_EXHAUSTED' : err.code || 'RANKING_FAILED',
+            code: isQuota ? 'QUOTA_EXHAUSTED' : isRateLimited ? 'RATE_LIMITED' : err.code || 'RANKING_FAILED',
             message: isQuota
               ? 'Gemini daily free-tier quota exhausted. Resets at midnight Pacific. Please try again tomorrow.'
+              : isRateLimited
+              ? 'Gemini’s free-tier per-minute limit was reached. Wait about a minute and try again.'
               : err.message || 'Repository ranking failed',
           },
           finishedAt: new Date(),
