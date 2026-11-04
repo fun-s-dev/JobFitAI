@@ -99,6 +99,8 @@ const resumeClaimSchema = new mongoose.Schema(
     },
     skills: [{ type: String }],
     numbers: [{ type: String }],
+    // Name of the draft project this claim sits in ('' for experience bullets).
+    project: { type: String, default: '' },
 
     resumeEvidence: [evidenceItemSubSchema],
     entailment: {

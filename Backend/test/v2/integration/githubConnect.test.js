@@ -894,61 +894,49 @@ describe('GitHub Connect (real application code, external GitHub boundary faked)
       expect(res.status).toBe(401);
     });
 
-    it('requires exactly one source (repoUrl XOR repoId)', async () => {
+    it('requires a repoId and rejects anything else', async () => {
       await connect(kit.agentA, 'alice');
-      const both = await analyze(kit.agentA, { reportId: String(reportA._id), repoId: 1, repoUrl: 'https://github.com/alice-gh/repo-1' });
-      expect(both.status).toBe(400);
-      const neither = await analyze(kit.agentA, { reportId: String(reportA._id) });
-      expect(neither.status).toBe(400);
+      const missing = await analyze(kit.agentA, { reportId: String(reportA._id) });
+      expect(missing.status).toBe(400);
       const badId = await analyze(kit.agentA, { reportId: String(reportA._id), repoId: '1; drop' });
       expect(badId.status).toBe(400);
+      expect(await Job.countDocuments()).toBe(0);
     });
 
-    it('ignores any ownership claims sent by the client', async () => {
+    it('rejects client-supplied ownership claims instead of ignoring them', async () => {
+      await connect(kit.agentA, 'alice');
       const res = await analyze(kit.agentA, {
         reportId: String(reportA._id),
-        repoUrl: 'https://github.com/someone-else/their-repo',
+        repoId: 5, // Bob's repo: still not owned
         control: { verified: true, method: 'github_app_identity' },
         ownershipVerified: true,
       });
-      expect(res.status).toBe(202);
-      expect(res.body.ownershipVerified).toBe(false);
-
-      const job = await waitForJob(reportA._id);
-      expect(job.repoControl).toEqual({ verified: false, method: 'pasted_public_url' });
+      expect(res.status).toBe(400);
+      expect(await Job.countDocuments()).toBe(0);
     });
   });
 
   // ---------------------------------------------------------------------------------------------
-  describe('existing pasted-URL mode is preserved (ownership NOT verified)', () => {
-    it('still works without any GitHub connection and uses the default client', async () => {
-      const res = await kit.agentA
-        .post('/api/v2/github/analyze')
-        .send({ reportId: String(reportA._id), repoUrl: 'https://github.com/fun-s-dev/JobFitAI' });
+  describe('the pasted-URL mode is removed', () => {
+    it.each([
+      ['a valid GitHub URL', 'https://github.com/fun-s-dev/JobFitAI'],
+      ['a non-GitHub URL', 'https://evil.example.com/a/b'],
+    ])('rejects %s with 400, creates no job and never calls GitHub', async (_label, repoUrl) => {
+      const res = await kit.agentA.post('/api/v2/github/analyze').send({ reportId: String(reportA._id), repoUrl });
 
-      expect(res.status).toBe(202);
-      expect(res.body.ownershipVerified).toBe(false);
-      await waitForJob(reportA._id);
-
-      expect(evidenceCalls).toHaveLength(1);
-      expect(evidenceCalls[0].control).toEqual({ verified: false, method: 'pasted_public_url' });
-      expect(evidenceCalls[0].githubClient).toBeNull();
-      expect(world.apiCalls).toEqual([]); // GitHub Connect was not involved
+      expect(res.status).toBe(400);
+      expect(await Job.countDocuments()).toBe(0);
+      expect(evidenceCalls).toHaveLength(0);
+      expect(world.apiCalls).toEqual([]);
     });
 
-    it('fails the job with a clear message for a non-GitHub URL, before any GitHub API call (real evidence service)', async () => {
-      const { createGitHubEvidenceService } = require('../../../src/v2/services/githubEvidence.service');
-      const getRepoMetadata = vi.fn();
-      setGithubEvidenceService(createGitHubEvidenceService({ githubClient: { getRepoMetadata } }));
-
+    it('rejects a body that carries both a repoUrl and a repoId', async () => {
+      await connect(kit.agentA, 'alice');
       const res = await kit.agentA
         .post('/api/v2/github/analyze')
-        .send({ reportId: String(reportA._id), repoUrl: 'https://evil.example.com/a/b' });
-
-      expect(res.status).toBe(202);
-      const job = await waitForJob(reportA._id, 'failed');
-      expect(job.error.message).toMatch(/github\.com/i);
-      expect(getRepoMetadata).not.toHaveBeenCalled();
+        .send({ reportId: String(reportA._id), repoId: 1, repoUrl: 'https://github.com/alice-gh/repo-1' });
+      expect(res.status).toBe(400);
+      expect(await Job.countDocuments()).toBe(0);
     });
   });
 
@@ -962,7 +950,7 @@ describe('GitHub Connect (real application code, external GitHub boundary faked)
         [0, 1].map(() => ({ user: kit.userA.id, report: reportA._id, type: 'github_analysis', status: 'done', repoUrl: 'https://github.com/a/b' }))
       );
 
-      const res = await analyze({ reportId: String(reportA._id), repoUrl: 'https://github.com/a/b' });
+      const res = await analyze({ reportId: String(reportA._id), repoId: 1 });
       expect(res.status).toBe(429);
       expect(res.body.error.code).toBe('DAILY_BUDGET_REACHED');
       expect(res.body.message).toMatch(/daily github analysis limit reached/i);
@@ -974,9 +962,10 @@ describe('GitHub Connect (real application code, external GitHub boundary faked)
       await Job.insertMany([{ user: kit.userA.id, report: reportA._id, type: 'github_analysis', status: 'done', repoUrl: 'https://github.com/a/b' }]);
       const reportB = await InterviewReport.create({ user: kit.userB.id, title: 'T', jobDescription: 'JD for engineer', resume: 'r' });
 
-      const blocked = await analyze({ reportId: String(reportA._id), repoUrl: 'https://github.com/a/b' });
+      const blocked = await analyze({ reportId: String(reportA._id), repoId: 1 });
       expect(blocked.status).toBe(429);
-      const ok = await kit.agentB.post('/api/v2/github/analyze').send({ reportId: String(reportB._id), repoUrl: 'https://github.com/a/b' });
+      await connect(kit.agentB, 'bob');
+      const ok = await kit.agentB.post('/api/v2/github/analyze').send({ reportId: String(reportB._id), repoId: 5 });
       expect(ok.status).toBe(202);
       await waitForJob(reportB._id);
     });
@@ -986,7 +975,7 @@ describe('GitHub Connect (real application code, external GitHub boundary faked)
       process.env.LLM_DAILY_BUDGET = '1';
       await LlmCall.create({ purpose: 'x', model: 'gemini-3.5-flash-lite', ok: true, ms: 1, createdAt: new Date(getMidnightPacific().getTime() + 1000) });
 
-      const res = await analyze({ reportId: String(reportA._id), repoUrl: 'https://github.com/a/b' });
+      const res = await analyze({ reportId: String(reportA._id), repoId: 1 });
       expect(res.status).toBe(429);
       expect(res.body.message).toMatch(/LLM generation budget reached/i);
       expect(await Job.countDocuments()).toBe(0);
@@ -1050,6 +1039,139 @@ describe('GitHub Connect (real application code, external GitHub boundary faked)
 
       const other = await kit.agentB.get(`/api/v2/github/analysis/${analysis._id}`);
       expect(other.status).toBe(404);
+    });
+  });
+
+  // ---------------------------------------------------------------------------------------------
+  describe('linked repositories and their draft project (persisted per report)', () => {
+    const GithubAnalysis = require('../../../src/v2/models/githubAnalysis');
+    const ResumeDraft = require('../../../src/v2/models/resumeDraft.model');
+    const verified = { verified: true, method: 'github_app_identity', githubLogin: 'alice-gh' };
+
+    async function linkRepo(report, user, fullName, control = verified) {
+      const analysis = await GithubAnalysis.create({
+        repositoryUrl: `https://github.com/${fullName}`,
+        repositoryFullName: fullName,
+        commitSha: `sha-${fullName}`,
+      });
+      await ReportProjectLink.create({
+        report: report._id,
+        user,
+        analysisId: analysis._id,
+        repoUrl: `https://github.com/${fullName}`,
+        control,
+      });
+      return analysis;
+    }
+
+    async function makeDraft(report, user, ...projectNames) {
+      return ResumeDraft.create({
+        report: report._id,
+        user,
+        draft: {
+          summary: 's',
+          projects: projectNames.map((name, i) => ({
+            id: `prj${i}`,
+            name,
+            bullets: [{ id: `prj${i}.b0`, text: `${name} bullet` }],
+          })),
+        },
+      });
+    }
+
+    const getLinks = (agent, reportId) => agent.get(`/api/v2/github/links/${reportId}`);
+    const setProject = (agent, analysisId, body) => agent.put(`/api/v2/github/links/${analysisId}/project`).send(body);
+
+    it('lists the report’s linked repositories with the matched draft project and the projects to choose from', async () => {
+      await makeDraft(reportA, kit.userA.id, 'Meri Sakhi', 'Backend Ledger');
+      const matching = await linkRepo(reportA, kit.userA.id, 'alice-gh/meri-sakhi');
+      const other = await linkRepo(reportA, kit.userA.id, 'alice-gh/anvaya-agent');
+
+      const res = await getLinks(kit.agentA, String(reportA._id));
+      expect(res.status).toBe(200);
+      expect(res.body.hasDraft).toBe(true);
+      expect(res.body.draftProjects).toEqual(['Meri Sakhi', 'Backend Ledger']);
+
+      const byId = Object.fromEntries(res.body.links.map((l) => [l.analysisId, l]));
+      expect(byId[String(matching._id)]).toMatchObject({
+        repositoryFullName: 'alice-gh/meri-sakhi',
+        verified: true,
+        matchedProject: 'Meri Sakhi',
+        matchSource: 'name',
+      });
+      expect(byId[String(other._id)]).toMatchObject({ matchedProject: null, matchSource: 'none', explicitProjectName: null });
+      expectNoSecrets(res);
+    });
+
+    it('works before any draft exists (nothing to match yet)', async () => {
+      await linkRepo(reportA, kit.userA.id, 'alice-gh/meri-sakhi');
+      const res = await getLinks(kit.agentA, String(reportA._id));
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ hasDraft: false, draftProjects: [] });
+      expect(res.body.links[0].matchedProject).toBeNull();
+    });
+
+    it('lets the user assign a repository to a draft project, and clear the choice again', async () => {
+      await makeDraft(reportA, kit.userA.id, 'Meri Sakhi', 'Backend Ledger');
+      const analysis = await linkRepo(reportA, kit.userA.id, 'alice-gh/Banking-System-backend');
+
+      const set = await setProject(kit.agentA, analysis._id, { reportId: String(reportA._id), projectName: 'backend ledger' });
+      expect(set.status).toBe(200);
+      expect(set.body.projectName).toBe('Backend Ledger'); // stored with the draft's own spelling
+      expect((await ReportProjectLink.findOne({ analysisId: analysis._id }).lean()).projectName).toBe('Backend Ledger');
+
+      let listed = (await getLinks(kit.agentA, String(reportA._id))).body.links[0];
+      expect(listed).toMatchObject({ matchedProject: 'Backend Ledger', matchSource: 'user', explicitProjectName: 'Backend Ledger' });
+
+      const cleared = await setProject(kit.agentA, analysis._id, { reportId: String(reportA._id), projectName: null });
+      expect(cleared.status).toBe(200);
+      listed = (await getLinks(kit.agentA, String(reportA._id))).body.links[0];
+      expect(listed).toMatchObject({ matchedProject: null, matchSource: 'none', explicitProjectName: null });
+    });
+
+    it('rejects a project that is not in the draft, and does not change the link', async () => {
+      await makeDraft(reportA, kit.userA.id, 'Meri Sakhi');
+      const analysis = await linkRepo(reportA, kit.userA.id, 'alice-gh/anvaya-agent');
+      const res = await setProject(kit.agentA, analysis._id, { reportId: String(reportA._id), projectName: 'Totally Made Up' });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_PROJECT');
+      expect((await ReportProjectLink.findOne({ analysisId: analysis._id }).lean()).projectName ?? null).toBeNull();
+    });
+
+    it('validates the body strictly', async () => {
+      await makeDraft(reportA, kit.userA.id, 'Meri Sakhi');
+      const analysis = await linkRepo(reportA, kit.userA.id, 'alice-gh/anvaya-agent');
+      const extra = await setProject(kit.agentA, analysis._id, { reportId: String(reportA._id), projectName: 'Meri Sakhi', control: { verified: true } });
+      expect(extra.status).toBe(400);
+      const empty = await setProject(kit.agentA, analysis._id, { reportId: String(reportA._id), projectName: '   ' });
+      expect(empty.status).toBe(400);
+      const badId = await kit.agentA.put('/api/v2/github/links/not-an-id/project').send({ reportId: String(reportA._id), projectName: null });
+      expect(badId.status).toBe(400);
+    });
+
+    it('another user cannot read or change the links of this report (404, nothing changes)', async () => {
+      await makeDraft(reportA, kit.userA.id, 'Meri Sakhi');
+      const analysis = await linkRepo(reportA, kit.userA.id, 'alice-gh/meri-sakhi');
+
+      expect((await getLinks(kit.agentB, String(reportA._id))).status).toBe(404);
+      const put = await setProject(kit.agentB, analysis._id, { reportId: String(reportA._id), projectName: 'Meri Sakhi' });
+      expect(put.status).toBe(404);
+      expect((await ReportProjectLink.findOne({ analysisId: analysis._id }).lean()).projectName ?? null).toBeNull();
+    });
+
+    it('a link of another report cannot be changed through this report (404)', async () => {
+      const reportA2 = await InterviewReport.create({ user: kit.userA.id, title: 'T2', jobDescription: 'JD for engineer', resume: 'r' });
+      await makeDraft(reportA, kit.userA.id, 'Meri Sakhi');
+      const otherReportsLink = await linkRepo(reportA2, kit.userA.id, 'alice-gh/meri-sakhi');
+      const res = await setProject(kit.agentA, otherReportsLink._id, { reportId: String(reportA._id), projectName: 'Meri Sakhi' });
+      expect(res.status).toBe(404);
+    });
+
+    it('requires login', async () => {
+      expect((await request(kit.app).get(`/api/v2/github/links/${reportA._id}`)).status).toBe(401);
+      expect(
+        (await request(kit.app).put(`/api/v2/github/links/${reportA._id}/project`).send({ reportId: String(reportA._id), projectName: null })).status
+      ).toBe(401);
     });
   });
 });

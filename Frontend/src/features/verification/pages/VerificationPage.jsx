@@ -8,6 +8,8 @@ import { useClaimDecision } from '../hooks/useClaimDecision';
 import SummaryBar from '../components/SummaryBar';
 import ClaimRow from '../components/ClaimRow';
 import GithubConnectPanel from '../components/GithubConnectPanel';
+import GithubProjectLinks from '../components/GithubProjectLinks';
+import { useGithubLinks } from '../hooks/useGithubLinks';
 import { parseGithubConnectResult } from '../utils/githubConnectMessages';
 import {
   startVerificationJob,
@@ -33,10 +35,11 @@ export default function VerificationPage() {
   const [draftError, setDraftError] = useState(null);
   const [printNotice, setPrintNotice] = useState(null);
   const [startError, setStartError] = useState(null);
-  const [linkedAnalysisIds, setLinkedAnalysisIds] = useState([]);
   const [githubResult, setGithubResult] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  // Linked repositories are stored on the server, so they survive a reload
+  const githubLinks = useGithubLinks(reportId);
 
   // The backend callback redirects here with ?github=connected or ?github=error&reason=...
   useEffect(() => {
@@ -112,7 +115,8 @@ export default function VerificationPage() {
     setPrintNotice(null);
     try {
       const data = await startVerificationJob(reportId, {
-        githubAnalysisIds: linkedAnalysisIds.length > 0 ? linkedAnalysisIds : undefined,
+        githubAnalysisIds:
+          githubLinks.verifiedAnalysisIds.length > 0 ? githubLinks.verifiedAnalysisIds : undefined,
       });
       if (data.jobId) {
         setActiveJobId(data.jobId);
@@ -138,6 +142,7 @@ export default function VerificationPage() {
       await createDraftForReport(reportId);
       setDraftNotice('Tailored resume draft generated. Run verification to check it before exporting.');
       queryClient.invalidateQueries({ queryKey: ['draft', reportId] });
+      queryClient.invalidateQueries({ queryKey: ['githubLinks', reportId] }); // the draft's projects changed
       refetch();
     } catch (err) {
       setDraftError(
@@ -357,23 +362,23 @@ export default function VerificationPage() {
           </div>
         )}
 
-        {/* GitHub Repository Evidence: Connect GitHub (verified ownership) or pasted URL (unverified) */}
+        {/* GitHub repository evidence: connect GitHub, pick a repository, then say which project it belongs to */}
         <GithubConnectPanel
           reportId={reportId}
-          onAnalysisComplete={(analysis) => {
-            if (analysis?._id) {
-              setLinkedAnalysisIds((prev) => Array.from(new Set([...prev, analysis._id])));
-            }
+          onAnalysisComplete={() => {
+            queryClient.invalidateQueries({ queryKey: ['githubLinks', reportId] });
           }}
         />
+        <GithubProjectLinks reportId={reportId} data={githubLinks.data} />
 
-        {run?.config?.githubEvidence?.excludedUnverifiedAnalysisIds?.length > 0 && (
-          <div className="verification-page__waking-alert" role="status" data-testid="unverified-github-notice">
+        {run?.config?.githubEvidence?.unmatchedAnalysisIds?.length > 0 && (
+          <div className="verification-page__waking-alert" role="status" data-testid="unmatched-github-notice">
             <span>
-              {run.config.githubEvidence.excludedUnverifiedAnalysisIds.length} linked repositor
-              {run.config.githubEvidence.excludedUnverifiedAnalysisIds.length === 1 ? 'y was' : 'ies were'} not counted
-              in this verification because ownership was not verified. Connect GitHub and select your own
-              repositories to count them.
+              {run.config.githubEvidence.unmatchedAnalysisIds.length} linked repositor
+              {run.config.githubEvidence.unmatchedAnalysisIds.length === 1 ? 'y' : 'ies'} did not match any project in
+              the draft, so {run.config.githubEvidence.unmatchedAnalysisIds.length === 1 ? 'it was' : 'they were'} not
+              used as evidence in this verification. Choose the project each repository belongs to above, then
+              verify again.
             </span>
           </div>
         )}

@@ -3,7 +3,8 @@ const GithubAnalysis = require('../models/githubAnalysis');
 const ReportProjectLink = require('../models/reportProjectLink.model');
 const GithubConnection = require('../models/githubConnection.model');
 const GithubOauthState = require('../models/githubOauthState.model');
-const { InvalidRepoUrlError } = require('../core/parseRepoUrl');
+const ResumeDraft = require('../models/resumeDraft.model');
+const { resolveProjectForRepo, normalizeProjectKey } = require('../core/projectMatching');
 const { UNSUPPORTED } = require('../core/githubRepoClassification');
 const { getCfg, isGitHubConnectConfigured } = require('../config/env');
 const { createGitHubAppAuth } = require('../adapters/githubAppAuth');
@@ -167,37 +168,28 @@ function createGithubController({ jobStarter = startGitHubAnalysisJob, logger = 
 
   /**
    * POST /api/v2/github/analyze
-   * Body: { reportId, repoUrl }  -> pasted public URL: analysed, ownership NOT verified
-   *    or { reportId, repoId }   -> repository from the connected GitHub account: ownership verified
+   * Body: { reportId, repoId } -> a repository from the connected GitHub account. Ownership is
+   * verified server-side from GitHub's response. Pasted URLs are not accepted.
    * Returns 202 Accepted with a job id.
    */
   async function postAnalyzeRepo(req, res, next) {
-    const { reportId, repoUrl, repoId } = req.body;
+    const { reportId, repoId } = req.body;
     const userId = req.user._id || req.user.id;
 
     try {
-      let urlToAnalyze = repoUrl;
-      let repoControl = { verified: false, method: 'pasted_public_url' };
-      let resolveGithubClient = null;
-
-      if (repoId !== undefined) {
-        const connectService = getConnectService();
-        const { repo, control } = await connectService.resolveRepository(String(userId), repoId);
-        if (!repo.selectable || !control) {
-          const mapped = UNSUPPORTED_HTTP[repo.unsupportedReason] || { status: 422, code: 'REPO_UNSUPPORTED' };
-          return sendError(req, res, mapped.status, mapped.code, repo.unsupportedMessage || 'This repository cannot be analyzed.');
-        }
-        urlToAnalyze = repo.htmlUrl;
-        repoControl = control;
-        resolveGithubClient = (id) => connectService.getClientForUser(id);
+      const connectService = getConnectService();
+      const { repo, control } = await connectService.resolveRepository(String(userId), repoId);
+      if (!repo.selectable || !control) {
+        const mapped = UNSUPPORTED_HTTP[repo.unsupportedReason] || { status: 422, code: 'REPO_UNSUPPORTED' };
+        return sendError(req, res, mapped.status, mapped.code, repo.unsupportedMessage || 'This repository cannot be analyzed.');
       }
 
       const { job, isNew } = await jobStarter({
         userId,
         reportId,
-        repoUrl: urlToAnalyze,
-        repoControl,
-        resolveGithubClient,
+        repoUrl: repo.htmlUrl,
+        repoControl: control,
+        resolveGithubClient: (id) => connectService.getClientForUser(id),
         githubEvidenceService: activeEvidenceService || undefined,
       });
 
@@ -205,15 +197,94 @@ function createGithubController({ jobStarter = startGitHubAnalysisJob, logger = 
         jobId: job._id,
         status: job.status,
         isNew,
-        ownershipVerified: repoControl.verified === true,
+        ownershipVerified: control.verified === true,
         message: 'GitHub analysis job queued',
         requestId: requestIdOf(req),
       });
     } catch (err) {
-      if (err instanceof InvalidRepoUrlError) {
-        return sendError(req, res, 400, 'INVALID_REPO_URL', err.message);
-      }
       return handleConnectError(err, req, res, next);
+    }
+  }
+
+  /** Project names of the latest draft of a report ([] when there is no draft yet). */
+  async function latestDraftProjects(reportId, userId) {
+    const latest = await ResumeDraft.findOne({ report: reportId, user: userId }).sort({ createdAt: -1 }).lean();
+    const projects = latest && latest.draft && Array.isArray(latest.draft.projects) ? latest.draft.projects : [];
+    return { hasDraft: Boolean(latest && latest.draft), projects };
+  }
+
+  // GET /api/v2/github/links/:reportId
+  // The repositories linked to this report (persisted), which draft project each one belongs to,
+  // and the draft's project names the user can choose from.
+  async function listReportLinks(req, res, next) {
+    const userId = req.user._id || req.user.id;
+    try {
+      const reportId = req.report._id;
+      const links = await ReportProjectLink.find({ report: reportId, user: userId }).lean();
+      const analyses = await GithubAnalysis.find({ _id: { $in: links.map((l) => l.analysisId) } })
+        .select('repositoryFullName repositoryUrl')
+        .lean();
+      const nameById = new Map(analyses.map((a) => [String(a._id), a]));
+      const { hasDraft, projects } = await latestDraftProjects(reportId, userId);
+
+      const rows = links.map((link) => {
+        const analysis = nameById.get(String(link.analysisId));
+        const repositoryFullName = analysis ? analysis.repositoryFullName : link.repoUrl;
+        const verified = Boolean(link.control && link.control.verified === true);
+        const { index, source } = resolveProjectForRepo({
+          explicitProjectName: link.projectName || null,
+          repositoryFullName,
+          projects,
+        });
+        return {
+          analysisId: String(link.analysisId),
+          repositoryFullName,
+          verified,
+          explicitProjectName: link.projectName || null,
+          matchedProject: index >= 0 ? projects[index].name : null,
+          matchSource: source,
+        };
+      });
+
+      res.set('Cache-Control', 'no-store');
+      return res.status(200).json({
+        links: rows,
+        draftProjects: projects.map((p) => p.name),
+        hasDraft,
+        requestId: requestIdOf(req),
+      });
+    } catch (err) {
+      return next(err);
+    }
+  }
+
+  // PUT /api/v2/github/links/:analysisId/project   body: { reportId, projectName | null }
+  async function setLinkProject(req, res, next) {
+    const userId = req.user._id || req.user.id;
+    const { analysisId } = req.params;
+    const { projectName } = req.body;
+    try {
+      const link = await ReportProjectLink.findOne({ report: req.report._id, analysisId, user: userId });
+      if (!link) {
+        return sendError(req, res, 404, 'NOT_FOUND', 'Linked repository not found');
+      }
+
+      let chosen = null;
+      if (projectName !== null) {
+        const { projects } = await latestDraftProjects(req.report._id, userId);
+        const wanted = normalizeProjectKey(projectName);
+        const match = projects.find((p) => normalizeProjectKey(p.name) === wanted);
+        if (!match) {
+          return sendError(req, res, 400, 'INVALID_PROJECT', 'Choose one of the projects in your resume draft.');
+        }
+        chosen = match.name;
+      }
+
+      link.projectName = chosen;
+      await link.save();
+      return res.status(200).json({ analysisId: String(link.analysisId), projectName: chosen, requestId: requestIdOf(req) });
+    } catch (err) {
+      return next(err);
     }
   }
 
@@ -238,6 +309,7 @@ function createGithubController({ jobStarter = startGitHubAnalysisJob, logger = 
       }
 
       const verifiedLink = links.find((l) => l.control && l.control.verified === true);
+      // Links created before ownership verification existed (pasted URLs) stay readable as unverified
       const control = verifiedLink ? verifiedLink.control : { verified: false, method: 'pasted_public_url' };
 
       return res.status(200).json({
@@ -256,7 +328,17 @@ function createGithubController({ jobStarter = startGitHubAnalysisJob, logger = 
     }
   }
 
-  return { getConnection, startConnect, connectCallback, listRepos, disconnect, postAnalyzeRepo, getAnalysisById };
+  return {
+    getConnection,
+    startConnect,
+    connectCallback,
+    listRepos,
+    disconnect,
+    postAnalyzeRepo,
+    getAnalysisById,
+    listReportLinks,
+    setLinkProject,
+  };
 }
 
 const defaultController = createGithubController();
@@ -287,4 +369,6 @@ module.exports = {
   disconnect: defaultController.disconnect,
   postAnalyzeRepo: defaultController.postAnalyzeRepo,
   getAnalysisById: defaultController.getAnalysisById,
+  listReportLinks: defaultController.listReportLinks,
+  setLinkProject: defaultController.setLinkProject,
 };

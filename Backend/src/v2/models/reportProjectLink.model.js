@@ -43,6 +43,9 @@ const reportProjectLinkSchema = new mongoose.Schema(
       verifiedAt: { type: Date, default: null },
     },
     authorship: { type: String, enum: ['not_assessed'], default: 'not_assessed' },
+    // The draft project this repository belongs to, chosen by the user. When null the repository
+    // is matched to a draft project by name (see core/projectMatching.js).
+    projectName: { type: String, default: null, maxlength: 200 },
   },
   { timestamps: true }
 );

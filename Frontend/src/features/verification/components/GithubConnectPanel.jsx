@@ -11,7 +11,6 @@ import {
 import { useJob } from '../hooks/useJob';
 import { isGithubAuthorizeUrl } from '../utils/githubConnectMessages';
 import { getApiErrorMessage } from '../../../services/apiError';
-import GithubLinkForm from './GithubLinkForm';
 
 const sectionStyle = { marginBottom: '1.5rem' };
 const noteStyle = { fontSize: '0.85rem', color: '#9aa4b2', margin: '0.5rem 0' };
@@ -21,8 +20,8 @@ const errorStyle = { color: '#ff6b6b', fontSize: '0.9rem', margin: '0.5rem 0' };
  * GitHub evidence: "Connect GitHub" (GitHub App user authorization) + repository selection.
  *
  * What a connection proves: the repositories listed are owned by the GitHub account that the user
- * authorized. It does NOT prove the user wrote the code in them. Pasted URLs stay available but are
- * clearly marked as unverified and are not counted toward the score.
+ * authorized. It does NOT prove the user wrote the code in them. Connecting is the only way to add
+ * repository evidence (there is no pasted-URL mode).
  *
  * @param {object} props
  * @param {string} props.reportId
@@ -141,8 +140,8 @@ export default function GithubConnectPanel({
 
       {connection && connection.configured === false && (
         <p style={noteStyle}>
-          GitHub Connect is not set up on this server, so repository ownership cannot be verified. You can
-          still paste a public repository URL below; it will not count as verified evidence.
+          GitHub Connect is not set up on this server, so repositories cannot be added as evidence. Your
+          resume alone is used for verification.
         </p>
       )}
 
@@ -254,15 +253,6 @@ export default function GithubConnectPanel({
         </p>
       )}
 
-      <details style={{ marginTop: '1rem' }}>
-        <summary>Or paste a public repository URL (ownership not verified)</summary>
-        <GithubLinkForm
-          reportId={reportId}
-          onAnalysisComplete={(analysis, control) => {
-            if (typeof onAnalysisComplete === 'function') onAnalysisComplete(analysis, control);
-          }}
-        />
-      </details>
     </section>
   );
 }

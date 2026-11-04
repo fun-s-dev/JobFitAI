@@ -101,8 +101,8 @@ flowchart TD
 
 ## 3. Implemented Features
 
-- **Multi-Signal Consistency Checking**: Evaluates claims across three evidence classes (your resume and self-description, dependency manifests, and static AST code structures). Repository evidence only counts toward the score when ownership of the repository is verified through GitHub Connect.
-- **GitHub Connect (GitHub App user authorization)**: Sign in with GitHub (PKCE + `state`, no repository permissions requested) to prove you own a public repository, select it, and analyze it. Tokens are encrypted at rest, never sent to the browser, refreshed automatically, and revocable (Disconnect). Private repositories are not supported in this version. A pasted public URL still works but is marked unverified and is not scored.
+- **Multi-Signal Consistency Checking**: Evaluates claims across three evidence classes (your resume and self-description, dependency manifests, and static AST code structures). Repository evidence only counts toward the score when ownership of the repository is verified through GitHub Connect, and it only supports the claims of the draft project the repository belongs to (matched by name, or chosen by you). A repository never vouches for a different project, even one that uses the same technology.
+- **GitHub Connect (GitHub App user authorization)**: Sign in with GitHub (PKCE + `state`, no repository permissions requested) to prove you own a public repository, select it, and analyze it. Tokens are encrypted at rest, never sent to the browser, refreshed automatically, and revocable (Disconnect). Private repositories are not supported in this version. Pasting a repository URL is not supported: repositories can only be added through GitHub Connect.
 - **Complete Grounded Export**: Besides claim-checked bullets, the exported resume includes name, contact details, skills and education only when they appear in your resume; the AI-written summary is left out. Every dropped item is listed with a reason.
 - **Data Deletion**: Delete a plan (with its drafts, claims and jobs) or your whole account and all its data from the UI.
 - **Prompt & Contradiction Defense**: Defends against prompt injection within job descriptions and adversarial README instructions. Contradictory evidence overrides self-reported claims.
@@ -138,7 +138,7 @@ flowchart TD
 4. **Retrieval**: for each claim, the top evidence chunks (`MAX_EVIDENCE_CHUNKS`, default 3) are selected by cosine similarity.
 5. **Entailment**: Gemini judges only the retrieved evidence and answers yes, partial or no for each claim, with a supporting quote.
 6. **Quote grounding**: the quote must appear in the source text (Levenshtein similarity of at least 0.90), otherwise the verdict is not trusted.
-7. **GitHub evidence** (optional): dependencies and code structure from a verified-owned public repository count as additional evidence.
+7. **GitHub evidence** (optional): dependencies and code structure from a verified-owned public repository count as additional evidence, but only for the claims of the project that repository belongs to. Experience (work) bullets never use repository evidence.
 8. **Score and decision**: a weighted confidence score (similarity 0.30, entailment 0.40, project evidence 0.30; without GitHub 0.40 and 0.60) is mapped to `verified` (at least 0.80), `needs_review` (0.50 to 0.80) or `rejected` (below 0.50). You can approve or reject items manually before export.
 9. **Export**: only verified (and user-approved) content is exported, bound to the exact draft the verification run checked.
 
@@ -167,7 +167,7 @@ All routes are under `/api`. Session cookie required except register and login.
 | Drafts and export (V2) | `POST /v2/drafts/:reportId`, `GET /v2/drafts/:reportId`, `GET /v2/drafts/:reportId/print`, `POST /v2/drafts/:reportId/pdf`, `GET /v2/drafts/:reportId/grounded` |
 | Verification (V2) | `POST /v2/verification/:reportId`, `GET /v2/verification/:reportId`, `GET` and `PATCH /v2/verification/claim/:claimId` |
 | Jobs | `GET /v2/jobs/:id` |
-| GitHub | `GET /v2/github/connection`, `POST /v2/github/connect/start`, `GET /v2/github/connect/callback`, `GET /v2/github/repos`, `DELETE /v2/github/connection`, `POST /v2/github/analyze`, `GET /v2/github/analysis/:id` |
+| GitHub | `GET /v2/github/connection`, `POST /v2/github/connect/start`, `GET /v2/github/connect/callback`, `GET /v2/github/repos`, `DELETE /v2/github/connection`, `POST /v2/github/analyze` (body: `reportId`, `repoId`), `GET /v2/github/analysis/:id`, `GET /v2/github/links/:reportId`, `PUT /v2/github/links/:analysisId/project` |
 | Health | `GET /v2/health`, `/health`, `/ready` |
 
 Errors use one shape: `{ message, error: { code, message, requestId } }`.

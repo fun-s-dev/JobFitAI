@@ -12,6 +12,7 @@ const defaultInterviewReport = require('../../models/interviewReport.model');
 const defaultReportProjectLink = require('../models/reportProjectLink.model');
 const defaultGithubAnalysis = require('../models/githubAnalysis');
 const { aggregateProjectEvidence } = require('../core/evidenceAggregator');
+const { projectIndexFromBulletId, resolveProjectForRepo } = require('../core/projectMatching');
 
 class VerificationError extends Error {
   constructor(message, status = 500, code = 'VERIFICATION_ERROR', retryAfter = null) {
@@ -264,11 +265,17 @@ function createVerificationService({
     }
 
     // 1.5 Validate that each githubAnalysisId is linked to this report and user (else 404)
-    let githubItems = [];
-    // Only repositories whose OWNERSHIP was verified through GitHub Connect count toward the score.
-    // Pasted public URLs (and links created before ownership verification existed) are analysed and
-    // shown, but excluded here. Repository control is not proof of authorship either way.
-    const githubEvidenceSummary = { usedAnalysisIds: [], excludedUnverifiedAnalysisIds: [] };
+    // Only repositories whose OWNERSHIP was verified through GitHub Connect count toward the score
+    // (links created before ownership verification existed are excluded). Repository control is not
+    // proof of authorship either way. Evidence of a repository is further restricted to the claims of
+    // the draft project it belongs to (see step 2.5), never pooled across projects.
+    const verifiedRepos = []; // { analysisId, projectName, analysis }
+    const githubEvidenceSummary = {
+      usedAnalysisIds: [],
+      excludedUnverifiedAnalysisIds: [],
+      unmatchedAnalysisIds: [],
+      projectMatches: [],
+    };
     if (Array.isArray(githubAnalysisIds) && githubAnalysisIds.length > 0) {
       const ReportProjectLink = repos.ReportProjectLink || defaultReportProjectLink;
       const GithubAnalysis = repos.GithubAnalysis || defaultGithubAnalysis;
@@ -287,22 +294,18 @@ function createVerificationService({
           );
         }
         if (link.control && link.control.verified === true) {
-          githubEvidenceSummary.usedAnalysisIds.push(String(aId));
+          verifiedRepos.push({ analysisId: String(aId), projectName: link.projectName || null, analysis: null });
         } else {
           githubEvidenceSummary.excludedUnverifiedAnalysisIds.push(String(aId));
         }
       }
 
-      if (githubEvidenceSummary.usedAnalysisIds.length > 0) {
+      if (verifiedRepos.length > 0) {
         const analyses = await GithubAnalysis.find({
-          _id: { $in: githubEvidenceSummary.usedAnalysisIds },
+          _id: { $in: verifiedRepos.map((r) => r.analysisId) },
         });
-
-        for (const a of analyses) {
-          if (Array.isArray(a.evidenceItems)) {
-            githubItems.push(...a.evidenceItems);
-          }
-        }
+        const byId = new Map(analyses.map((a) => [String(a._id), a]));
+        for (const r of verifiedRepos) r.analysis = byId.get(r.analysisId) || null;
       }
     }
 
@@ -320,6 +323,31 @@ function createVerificationService({
         409,
         'draft_required'
       );
+    }
+
+    // 2.5 Tie each verified repository to the draft project it belongs to. Its evidence is then only
+    // offered to the claims of that project.
+    const draftProjects = Array.isArray(draft.draft.projects) ? draft.draft.projects : [];
+    const itemsByProject = new Map(); // project index -> evidence items
+    for (const r of verifiedRepos) {
+      const repositoryFullName = r.analysis ? r.analysis.repositoryFullName : '';
+      const { index } = resolveProjectForRepo({
+        explicitProjectName: r.projectName,
+        repositoryFullName,
+        projects: draftProjects,
+      });
+      if (index < 0 || !r.analysis) {
+        githubEvidenceSummary.unmatchedAnalysisIds.push(r.analysisId);
+        continue;
+      }
+      githubEvidenceSummary.usedAnalysisIds.push(r.analysisId);
+      githubEvidenceSummary.projectMatches.push({
+        analysisId: r.analysisId,
+        repository: repositoryFullName,
+        project: draftProjects[index].name,
+      });
+      const items = Array.isArray(r.analysis.evidenceItems) ? r.analysis.evidenceItems : [];
+      itemsByProject.set(index, [...(itemsByProject.get(index) || []), ...items]);
     }
 
     // 3. Extract atomic claims from draft bullets
@@ -434,6 +462,18 @@ function createVerificationService({
     }
 
     // 6. Verify each claim in memory with bounded concurrency
+    // Repository evidence for a claim: only the items of the repository matched to the claim's own
+    // project. Experience bullets and projects without a matched repository get none (resume only).
+    const itemsForClaim = (claim) => {
+      const idx = projectIndexFromBulletId(claim.bulletId);
+      const items = idx === null ? null : itemsByProject.get(idx);
+      return items && items.length > 0 ? items : null;
+    };
+    const projectNameForClaim = (claim) => {
+      const idx = projectIndexFromBulletId(claim.bulletId);
+      return idx !== null && draftProjects[idx] ? draftProjects[idx].name : '';
+    };
+
     let verifiedClaimData = [];
     let doneClaimsCount = 0;
     const totalClaims = extractedClaims.length;
@@ -452,7 +492,7 @@ function createVerificationService({
               claim,
               claimVector: claimVectors[idx] || null,
               chunksWithVectors,
-              githubItems: githubItems.length > 0 ? githubItems : null,
+              githubItems: itemsForClaim(claim),
               signals: {
                 similarity: true,
                 entailment: true,
@@ -469,7 +509,7 @@ function createVerificationService({
                 await onProgress({ done: doneClaimsCount, total: totalClaims });
               } catch {}
             }
-            return evaluated;
+            return { ...evaluated, project: projectNameForClaim(claim) };
           })
         )
       );

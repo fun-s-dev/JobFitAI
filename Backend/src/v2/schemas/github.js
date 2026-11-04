@@ -3,21 +3,33 @@ const { z } = require('zod');
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
 /**
- * Analyze a repository for a report. Exactly one source is accepted:
- *  - repoUrl : pasted public URL (existing mode). Ownership is NOT verified.
- *  - repoId  : a repository selected from the connected GitHub account. Ownership is verified
- *              server-side from GitHub's response.
+ * Analyze a repository for a report. The only source is a repository selected from the connected
+ * GitHub account (`repoId`); ownership is verified server-side from GitHub's response.
+ * Pasted repository URLs are no longer accepted. The schema is strict so a leftover `repoUrl` (or any
+ * client-supplied ownership claim) is rejected instead of silently ignored.
  */
 const analyzeRepoBodySchema = z
   .object({
     reportId: z.string().regex(objectIdRegex, 'reportId must be a 24-character hex string'),
-    repoUrl: z.string().url('repoUrl must be a valid URL').optional(),
-    repoId: z.number().int().positive().optional(),
+    repoId: z.number().int().positive(),
   })
-  .refine((body) => (body.repoUrl !== undefined) !== (body.repoId !== undefined), {
-    message: 'Provide exactly one of repoUrl or repoId',
-    path: ['repoId'],
-  });
+  .strict();
+
+const reportLinksParamsSchema = z.object({
+  reportId: z.string().regex(objectIdRegex, 'reportId must be a 24-character hex string'),
+});
+
+const setLinkProjectParamsSchema = z.object({
+  analysisId: z.string().regex(objectIdRegex, 'analysisId must be a 24-character hex string'),
+});
+
+// projectName: the draft project this repository belongs to, or null to go back to automatic matching
+const setLinkProjectBodySchema = z
+  .object({
+    reportId: z.string().regex(objectIdRegex, 'reportId must be a 24-character hex string'),
+    projectName: z.string().trim().min(1).max(200).nullable(),
+  })
+  .strict();
 
 const getAnalysisParamsSchema = z.object({
   analysisId: z.string().regex(objectIdRegex, 'analysisId must be a 24-character hex string'),
@@ -36,6 +48,9 @@ const connectStartBodySchema = z
 
 module.exports = {
   analyzeRepoBodySchema,
+  reportLinksParamsSchema,
+  setLinkProjectParamsSchema,
+  setLinkProjectBodySchema,
   getAnalysisParamsSchema,
   connectStartBodySchema,
 };

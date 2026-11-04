@@ -9,7 +9,6 @@ vi.mock('../src/features/verification/services/verification.api', () => ({
   listGithubRepos: vi.fn(),
   disconnectGithub: vi.fn(),
   startGitHubRepoAnalysis: vi.fn(),
-  startGitHubAnalysis: vi.fn(),
   getGitHubAnalysis: vi.fn(),
   getJobById: vi.fn(),
 }));
@@ -187,11 +186,19 @@ describe('GithubConnectPanel', () => {
     });
   });
 
-  it('keeps the pasted-URL option but labels it as not verified', async () => {
+  it('no longer offers a pasted-URL option: Connect GitHub is the only way to add a repository', async () => {
     getGithubConnection.mockResolvedValue({ configured: true, connected: false });
     renderPanel();
-    expect(await screen.findByText(/paste a public repository url \(ownership not verified\)/i)).toBeDefined();
-    expect(screen.getByText(/does not count toward verification/i)).toBeDefined();
+    expect(await screen.findByRole('button', { name: /connect github/i })).toBeDefined();
+    expect(screen.queryByText(/paste a public repository url/i)).toBeNull();
+    expect(screen.queryByPlaceholderText(/github\.com/i)).toBeNull();
+  });
+
+  it('tells the user repositories cannot be added when GitHub Connect is not set up (no URL fallback)', async () => {
+    getGithubConnection.mockResolvedValue({ configured: false, connected: false });
+    renderPanel();
+    expect(await screen.findByText(/cannot be added as evidence/i)).toBeDefined();
+    expect(screen.queryByText(/paste a public repository url/i)).toBeNull();
   });
 });
 

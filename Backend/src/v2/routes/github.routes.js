@@ -9,10 +9,15 @@ const {
   analyzeRepoBodySchema,
   getAnalysisParamsSchema,
   connectStartBodySchema,
+  reportLinksParamsSchema,
+  setLinkProjectParamsSchema,
+  setLinkProjectBodySchema,
 } = require('../schemas/github');
 const {
   postAnalyzeRepo,
   getAnalysisById,
+  listReportLinks,
+  setLinkProject,
   getConnection,
   startConnect,
   connectCallback,
@@ -95,6 +100,24 @@ router.post(
   guardUserDailyGithubAnalyses,
   guardLlmGenerationBudget,
   postAnalyzeRepo
+);
+
+// GET /api/v2/github/links/:reportId  -> repositories linked to a report + project assignment
+router.get(
+  '/links/:reportId',
+  authUser,
+  validate({ params: reportLinksParamsSchema }),
+  loadOwnedReport,
+  listReportLinks
+);
+
+// PUT /api/v2/github/links/:analysisId/project  -> choose which draft project a repository belongs to
+router.put(
+  '/links/:analysisId/project',
+  authUser,
+  validate({ params: setLinkProjectParamsSchema, body: setLinkProjectBodySchema }),
+  loadOwnedReport,
+  setLinkProject
 );
 
 // GET /api/v2/github/analysis/:analysisId

@@ -368,8 +368,18 @@ describe('verification.service (unit)', () => {
       mockRepos.ResumeDraft.findOne.mockReturnValue({
         sort: vi.fn().mockResolvedValue({
           _id: '507f1f77bcf86cd799439013',
-          draft: { experience: [{ bullets: [{ id: 'b1', text: 'Express API development' }] }] },
+          draft: {
+            experience: [],
+            projects: [{ id: 'prj0', name: 'Express API', bullets: [{ id: 'prj0.b0', text: 'Express API development' }] }],
+          },
         }),
+      });
+      // The claim sits in the project that the repository belongs to
+      mockClaimExtractionService.extractClaimsFromBullets.mockResolvedValue({
+        claims: [
+          { bulletId: 'prj0.b0', claimText: 'Architected microservices in Express', claimType: 'technology', skills: ['Express'], numbers: [] },
+        ],
+        incompleteBullets: [],
       });
       mockRepos.ReportProjectLink.findOne.mockResolvedValue({
         report: '507f1f77bcf86cd799439011',
@@ -380,6 +390,7 @@ describe('verification.service (unit)', () => {
       mockRepos.GithubAnalysis.find.mockResolvedValue([
         {
           _id: '507f1f77bcf86cd799439099',
+          repositoryFullName: 'alice/express-api',
           evidenceItems: [
             {
               _id: 'item_1',
@@ -461,7 +472,119 @@ describe('verification.service (unit)', () => {
         expect(result.run.config.githubEvidence).toEqual({
           usedAnalysisIds: [],
           excludedUnverifiedAnalysisIds: ['507f1f77bcf86cd799439099'],
+          unmatchedAnalysisIds: [],
+          projectMatches: [],
         });
+      });
+    });
+
+    describe('repository evidence belongs to its own project only', () => {
+      const REPORT = '507f1f77bcf86cd799439011';
+      const USER = '507f1f77bcf86cd799439012';
+      const ANALYSIS = '507f1f77bcf86cd799439099';
+      const verifiedControl = { verified: true, method: 'github_app_identity' };
+      const expressItem = { _id: 'item_1', type: 'source_file', skill: 'Express', strength: 0.8, contradiction: false };
+
+      const draftWith = (projects, experience = []) => ({
+        _id: '507f1f77bcf86cd799439013',
+        draft: { experience, projects },
+      });
+      const project = (idx, name) => ({ id: `prj${idx}`, name, bullets: [{ id: `prj${idx}.b0`, text: `${name} bullet` }] });
+
+      async function run({ draft, claims, repositoryFullName, linkExtra = {} }) {
+        mockRepos.InterviewReport.findOne.mockResolvedValue({ _id: REPORT, user: USER, resume: 'Experienced developer' });
+        mockRepos.ResumeDraft.findOne.mockReturnValue({ sort: vi.fn().mockResolvedValue(draft) });
+        mockClaimExtractionService.extractClaimsFromBullets.mockResolvedValue({
+          claims: claims.map((c) => ({ claimText: `uses Express (${c})`, claimType: 'technology', skills: ['Express'], numbers: [], bulletId: c })),
+          incompleteBullets: [],
+        });
+        mockRepos.ReportProjectLink.findOne.mockResolvedValue({
+          report: REPORT,
+          analysisId: ANALYSIS,
+          control: verifiedControl,
+          ...linkExtra,
+        });
+        mockRepos.GithubAnalysis.find.mockResolvedValue([
+          { _id: ANALYSIS, repositoryFullName, evidenceItems: [expressItem] },
+        ]);
+        const service = createVerificationService({
+          llmClient: mockLlmClient,
+          evidenceMatchingService: mockEvidenceMatchingService,
+          entailmentService: mockEntailmentService,
+          claimExtractionService: mockClaimExtractionService,
+          repos: mockRepos,
+        });
+        return service.verifyReport({ reportId: REPORT, userId: USER, githubAnalysisIds: [ANALYSIS] });
+      }
+
+      it('a repository supports the claims of its own project but not those of another project that uses the same technology', async () => {
+        const result = await run({
+          draft: draftWith([project(0, 'Meri Sakhi'), project(1, 'Backend Ledger')]),
+          claims: ['prj0.b0', 'prj1.b0'],
+          repositoryFullName: 'alice/meri-sakhi',
+        });
+
+        const own = result.claims.find((c) => c.bulletId === 'prj0.b0');
+        const other = result.claims.find((c) => c.bulletId === 'prj1.b0');
+        expect(own.projectEvidence.score).toBe(0.8);
+        expect(own.project).toBe('Meri Sakhi');
+        // Same skill (Express) but a different project: the repository must not vouch for it
+        expect(other.projectEvidence.score).toBeNull();
+        expect(other.projectEvidence.evidenceItemIds).toEqual([]);
+        expect(other.project).toBe('Backend Ledger');
+        expect(result.run.config.githubEvidence.projectMatches).toEqual([
+          { analysisId: ANALYSIS, repository: 'alice/meri-sakhi', project: 'Meri Sakhi' },
+        ]);
+      });
+
+      it('never lends repository evidence to experience (work) bullets', async () => {
+        const result = await run({
+          draft: draftWith([project(0, 'Meri Sakhi')], [
+            { id: 'exp0', company: 'Acme', role: 'Intern', bullets: [{ id: 'exp0.b0', text: 'Built an Express service' }] },
+          ]),
+          claims: ['exp0.b0', 'prj0.b0'],
+          repositoryFullName: 'alice/meri-sakhi',
+        });
+        expect(result.claims.find((c) => c.bulletId === 'exp0.b0').projectEvidence.score).toBeNull();
+        expect(result.claims.find((c) => c.bulletId === 'exp0.b0').project).toBe('');
+        expect(result.claims.find((c) => c.bulletId === 'prj0.b0').projectEvidence.score).toBe(0.8);
+      });
+
+      it('a repository whose name matches no draft project is reported as unmatched and contributes nothing', async () => {
+        const result = await run({
+          draft: draftWith([project(0, 'Meri Sakhi'), project(1, 'Backend Ledger')]),
+          claims: ['prj0.b0', 'prj1.b0'],
+          repositoryFullName: 'alice/anvaya-agent',
+        });
+        expect(result.claims.every((c) => c.projectEvidence.score === null)).toBe(true);
+        expect(result.run.config.githubEvidence).toMatchObject({
+          usedAnalysisIds: [],
+          unmatchedAnalysisIds: [ANALYSIS],
+          projectMatches: [],
+        });
+      });
+
+      it('an explicit project choice on the link overrides the name match and enables a differently named repository', async () => {
+        const result = await run({
+          draft: draftWith([project(0, 'Meri Sakhi'), project(1, 'Backend Ledger')]),
+          claims: ['prj0.b0', 'prj1.b0'],
+          repositoryFullName: 'alice/Banking-System-backend',
+          linkExtra: { projectName: 'Backend Ledger' },
+        });
+        expect(result.claims.find((c) => c.bulletId === 'prj1.b0').projectEvidence.score).toBe(0.8);
+        expect(result.claims.find((c) => c.bulletId === 'prj0.b0').projectEvidence.score).toBeNull();
+        expect(result.run.config.githubEvidence.projectMatches[0]).toMatchObject({ project: 'Backend Ledger' });
+      });
+
+      it('an explicit choice that no longer exists in the draft is not silently re-guessed', async () => {
+        const result = await run({
+          draft: draftWith([project(0, 'Meri Sakhi')]),
+          claims: ['prj0.b0'],
+          repositoryFullName: 'alice/meri-sakhi', // would match by name, but the user chose another project
+          linkExtra: { projectName: 'Deleted Project' },
+        });
+        expect(result.claims[0].projectEvidence.score).toBeNull();
+        expect(result.run.config.githubEvidence.unmatchedAnalysisIds).toEqual([ANALYSIS]);
       });
     });
   });

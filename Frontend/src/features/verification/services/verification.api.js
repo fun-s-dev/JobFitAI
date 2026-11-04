@@ -109,10 +109,20 @@ export async function getLatestDraft(reportId) {
 }
 
 /**
- * Initiates an async GitHub analysis job. Returns 202 { jobId, status }
+ * Repositories linked to this report (persisted on the server) with the draft project each one belongs to:
+ * { links: [{ analysisId, repositoryFullName, verified, explicitProjectName, matchedProject, matchSource }],
+ *   draftProjects: string[], hasDraft: boolean }
  */
-export async function startGitHubAnalysis(reportId, repoUrl) {
-  const response = await api.post('/api/v2/github/analyze', { reportId, repoUrl });
+export async function getReportGithubLinks(reportId) {
+  const response = await api.get(`/api/v2/github/links/${reportId}`);
+  return response.data;
+}
+
+/**
+ * Chooses which draft project a linked repository belongs to (null = back to automatic matching).
+ */
+export async function setGithubLinkProject(reportId, analysisId, projectName) {
+  const response = await api.put(`/api/v2/github/links/${analysisId}/project`, { reportId, projectName });
   return response.data;
 }
 
