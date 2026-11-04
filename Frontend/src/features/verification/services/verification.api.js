@@ -96,6 +96,19 @@ export async function createDraftForReport(reportId) {
 }
 
 /**
+ * Latest saved draft for a report, or null when none has been generated yet (404).
+ */
+export async function getLatestDraft(reportId) {
+  try {
+    const response = await api.get(`/api/v2/drafts/${reportId}`);
+    return response.data?.draft || null;
+  } catch (err) {
+    if (err.response?.status === 404) return null;
+    throw err;
+  }
+}
+
+/**
  * Initiates an async GitHub analysis job. Returns 202 { jobId, status }
  */
 export async function startGitHubAnalysis(reportId, repoUrl) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import '../style/verification.scss';
 import { useVerification } from '../hooks/useVerification';
 import { useJob } from '../hooks/useJob';
@@ -14,7 +14,9 @@ import {
   getPrintDraftUrl,
   downloadGroundedPdf,
   createDraftForReport,
+  getLatestDraft,
 } from '../services/verification.api';
+import { getInterviewReportById } from '../../interview/services/interview.api';
 
 export default function VerificationPage() {
   const { interviewId, id } = useParams();
@@ -71,6 +73,37 @@ export default function VerificationPage() {
 
   const claimDecisionMutation = useClaimDecision(reportId);
 
+  // Does a draft exist yet? Verification needs one, so the Verify button waits for it.
+  const draftQuery = useQuery({
+    queryKey: ['draft', reportId],
+    queryFn: () => getLatestDraft(reportId),
+    enabled: Boolean(reportId),
+    staleTime: 30000,
+  });
+  const hasDraft = Boolean(draftQuery.data) || claims.length > 0 || Boolean(run);
+  // If the draft lookup itself failed, do not block the user; the server still validates.
+  const canVerify = hasDraft || draftQuery.isError;
+
+  // Which source material the draft is built from (the plan's own resume, never a new upload).
+  const reportQuery = useQuery({
+    queryKey: ['report', reportId],
+    queryFn: () => getInterviewReportById(reportId),
+    enabled: Boolean(reportId),
+    staleTime: 60000,
+  });
+  const sourceReport = reportQuery.data?.interviewReport;
+  let sourceNotice = null;
+  if (sourceReport) {
+    const hasResume = typeof sourceReport.resume === 'string' && sourceReport.resume.trim().length > 0;
+    sourceNotice = hasResume
+      ? 'Using the resume you uploaded for this plan. You do not need to upload it again.'
+      : 'This plan has no uploaded resume, so the draft is built from your self-description only.';
+  }
+
+  const stepClass = (done, current) =>
+    `verification-steps__item${done ? ' verification-steps__item--done' : ''}${current ? ' verification-steps__item--current' : ''}`;
+  const exportReady = Boolean(grounded) && claims.length > 0;
+
   // Start verification handler
   const handleStartVerification = async () => {
     setIsStartingJob(true);
@@ -104,6 +137,7 @@ export default function VerificationPage() {
     try {
       await createDraftForReport(reportId);
       setDraftNotice('Tailored resume draft generated. Run verification to check it before exporting.');
+      queryClient.invalidateQueries({ queryKey: ['draft', reportId] });
       refetch();
     } catch (err) {
       setDraftError(
@@ -186,9 +220,26 @@ export default function VerificationPage() {
             </Link>
             <h1>Resume Verification & Grounded Export</h1>
             <p>
-              Checks each claim in the AI-tailored draft against the resume and self-description you provided.
-              It confirms consistency with your own material; it does not independently verify facts.
+              The draft is a job-tailored rewrite of your resume. Each claim in it is then checked against the
+              resume and self-description you provided, and only supported bullets reach the export. It confirms
+              consistency with your own material; it does not independently verify facts.
             </p>
+            {sourceNotice && (
+              <p data-testid="resume-source-notice" style={{ marginTop: '0.25rem' }}>
+                {sourceNotice}
+              </p>
+            )}
+            <ol className="verification-steps" aria-label="Steps" data-testid="verification-steps" style={{ display: 'flex', gap: '1rem', listStyle: 'none', padding: 0, margin: '0.75rem 0 0 0', flexWrap: 'wrap' }}>
+              <li className={stepClass(hasDraft, !hasDraft)} style={{ opacity: hasDraft ? 1 : 0.9 }}>
+                {hasDraft ? '✓ ' : ''}1. Generate draft
+              </li>
+              <li className={stepClass(Boolean(run), hasDraft && !run)} style={{ opacity: hasDraft ? 1 : 0.5 }}>
+                {run ? '✓ ' : ''}2. Verify claims
+              </li>
+              <li className={stepClass(exportReady, Boolean(run) && !exportReady)} style={{ opacity: run ? 1 : 0.5 }}>
+                3. Export
+              </li>
+            </ol>
           </div>
 
           <div className="verification-page__header-actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -197,9 +248,13 @@ export default function VerificationPage() {
               className="button secondary-button"
               onClick={handleGenerateDraft}
               disabled={isGeneratingDraft || activeJob.isRunning}
-              title="Tailors a fresh ResumeDraft for this report using Gemini (costs 1 Gemini call)"
+              title="Tailors your resume to this job using Gemini (costs 1 Gemini call)"
             >
-              {isGeneratingDraft ? 'Generating Draft (Gemini)...' : 'Generate Resume Draft'}
+              {isGeneratingDraft
+                ? 'Generating Draft (Gemini)...'
+                : hasDraft
+                ? 'Regenerate Resume Draft'
+                : '1. Generate Resume Draft'}
             </button>
 
             {!activeJob.isRunning && (
@@ -207,13 +262,14 @@ export default function VerificationPage() {
                 type="button"
                 className="button primary-button"
                 onClick={handleStartVerification}
-                disabled={isStartingJob || isGeneratingDraft}
+                disabled={isStartingJob || isGeneratingDraft || !canVerify}
+                title={canVerify ? undefined : 'Generate the resume draft first (step 1)'}
               >
                 {isStartingJob
                   ? 'Queueing Job...'
                   : claims.length > 0
                   ? 'Re-Run Verification'
-                  : 'Run Verification'}
+                  : '2. Run Verification'}
               </button>
             )}
           </div>
@@ -386,20 +442,33 @@ export default function VerificationPage() {
           !isVerifyingLoading &&
           !activeJob.isRunning && (
             <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-              <h2>No Verification Run Yet</h2>
+              <h2>{hasDraft ? 'Ready to Verify' : 'No Draft Yet'}</h2>
               <p style={{ color: '#7d8590', maxWidth: '480px', margin: '0.5rem auto 1.5rem auto' }}>
-                Generate a tailored draft, then run verification. Only bullets supported by your resume
-                (or approved by you) are exported. Skills, education and contact details are exported only
-                if they appear in your resume.
+                {hasDraft
+                  ? 'Your tailored draft is ready. Run verification to check each claim before exporting.'
+                  : 'Start by generating a job-tailored draft of your resume. Then run verification.'}{' '}
+                Only bullets supported by your resume (or approved by you) are exported. Skills, education and
+                contact details are exported only if they appear in your resume.
               </p>
-              <button
-                type="button"
-                className="button primary-button"
-                onClick={handleStartVerification}
-                disabled={isStartingJob}
-              >
-                {isStartingJob ? 'Queueing Job...' : 'Run Verification'}
-              </button>
+              {hasDraft ? (
+                <button
+                  type="button"
+                  className="button primary-button"
+                  onClick={handleStartVerification}
+                  disabled={isStartingJob || isGeneratingDraft}
+                >
+                  {isStartingJob ? 'Queueing Job...' : '2. Run Verification'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button primary-button"
+                  onClick={handleGenerateDraft}
+                  disabled={isGeneratingDraft || draftQuery.isLoading}
+                >
+                  {isGeneratingDraft ? 'Generating Draft (Gemini)...' : '1. Generate Resume Draft'}
+                </button>
+              )}
             </div>
           )
         )}
