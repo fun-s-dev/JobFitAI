@@ -7,13 +7,26 @@
 
 ---
 
+## At a Glance
+
+JobFitAI has two parts that share one account system:
+
+| Part | What it does |
+| :--- | :--- |
+| **V1: Interview prep** | Upload a resume PDF, paste a job description, and get a match score, technical and behavioral questions (with the interviewer's intention and how to answer), skill gaps with severity, and a day-wise preparation plan. |
+| **V2: Grounded resume** | Generate a tailored resume draft, split it into atomic claims, check every claim against your own evidence with **retrieval-augmented verification** (embedding retrieval plus LLM entailment plus quote grounding), optionally add GitHub repository evidence, and export only what the evidence supports. |
+
+**Stack:** React 19 + Vite, Node.js 22 + Express 5 (CommonJS), MongoDB (Mongoose), Google Gemini (generation and embeddings), Puppeteer (PDF), Zod, Pino, Vitest.
+
+---
+
 ## 1. Project Overview & Pitch
 
 Generative AI models excel at phrasing resume bullet points to align with job descriptions. However, standard LLM-based resume builders frequently hallucinate achievements, skills, metrics, and project contributions that the candidate never performed.
 
 **JobFitAI v2** solves this fundamental truthfulness problem. Instead of blindly trusting LLM generation:
 1. It decomposes generated bullets into **atomic factual claims**.
-2. It retrieves source evidence from original resumes and **static AST analysis of connected GitHub repositories**.
+2. It retrieves source evidence (embedding search over your resume chunks, plus **static AST analysis of connected GitHub repositories**) for each claim. This is retrieval-augmented *verification*: retrieval is used to check the output, not to write it (the draft step reads the full resume text).
 3. It validates each claim using multi-stage natural language inference (NLI), quote grounding, and cosine embedding similarity.
 4. It computes a composite **confidence score** using hand-set production thresholds (the offline calibrated logistic regression model D-cal was evaluated and rejected) and strictly excludes unverified or rejected claims from the exported ATS resume.
 
@@ -107,6 +120,60 @@ flowchart TD
 
 ---
 
+### 3.1 Interview Prep (V1)
+
+- **Report generation**: resume PDF (text extracted server-side), optional self-description and a job description go to Gemini through the shared LLM client (timeout, retry, pacing, schema validation with one repair attempt, and an audit row per call). Resume and job text are passed as data, with instructions in them ignored.
+- **Output**: match score (0-100), technical questions, behavioral questions (each with interviewer intention and how to answer), skill gaps with severity, and a 5-7 day preparation plan. A report is a coaching aid based only on what you supplied; it does not verify facts.
+- **Accounts**: register, log in and log out with bcrypt-hashed passwords, an HTTP-only session cookie and a token blacklist on logout. Registration can be closed behind an invite code.
+- **Management**: list and reopen past plans, delete a plan, or delete your account and all its data.
+- **Protection**: Zod request validation, per-route rate limits, a per-user daily report cap (`USER_DAILY_REPORTS`), a global daily AI budget, and a per-user lock that returns `409 REQUEST_IN_PROGRESS` instead of running two reports at once.
+- **Legacy PDF**: the old V1 resume-PDF download still exists and is scheduled for removal in favor of the V2 grounded export.
+- A full report takes about 30 seconds on the real API, so the V1 report client uses a 90-second timeout (`V1_REPORT_TIMEOUT_MS`).
+
+### 3.2 Retrieval and Verification Pipeline (V2)
+
+1. **Draft**: Gemini writes a tailored, structured resume draft from the resume, optional self-description and the job description.
+2. **Claim extraction**: each bullet is split into atomic, checkable claims (JSON schema output).
+3. **Chunking and embedding**: the resume text is split into chunks and embedded with `gemini-embedding-001` (768 dimensions). Embeddings are cached in MongoDB. There is no separate vector database; cosine similarity is computed in the application.
+4. **Retrieval**: for each claim, the top evidence chunks (`MAX_EVIDENCE_CHUNKS`, default 3) are selected by cosine similarity.
+5. **Entailment**: Gemini judges only the retrieved evidence and answers yes, partial or no for each claim, with a supporting quote.
+6. **Quote grounding**: the quote must appear in the source text (Levenshtein similarity of at least 0.90), otherwise the verdict is not trusted.
+7. **GitHub evidence** (optional): dependencies and code structure from a verified-owned public repository count as additional evidence.
+8. **Score and decision**: a weighted confidence score (similarity 0.30, entailment 0.40, project evidence 0.30; without GitHub 0.40 and 0.60) is mapped to `verified` (at least 0.80), `needs_review` (0.50 to 0.80) or `rejected` (below 0.50). You can approve or reject items manually before export.
+9. **Export**: only verified (and user-approved) content is exported, bound to the exact draft the verification run checked.
+
+Long-running steps run as background jobs that the UI polls. Jobs interrupted by a restart are marked failed on the next start instead of staying queued forever.
+
+### 3.3 Tech Stack
+
+| Layer | Technology |
+| :--- | :--- |
+| Frontend | React 19, Vite, React Router (lazy routes), TanStack Query, Axios |
+| Backend | Node.js 22, Express 5, Zod validation, Pino logging, Helmet, express-rate-limit |
+| Data | MongoDB with Mongoose (users, reports, drafts, claims, runs, jobs, LLM call audit log, embedding cache, GitHub connections) |
+| AI | Google Gemini for structured generation and entailment, `gemini-embedding-001` for retrieval |
+| Export | Puppeteer (headless Chromium) with request interception, zero-script CSP print view |
+| Code analysis | Acorn AST and manifest parsing for GitHub repositories (no code is executed) |
+| Quality | Vitest (backend and frontend), oxlint, GitHub Actions CI with an offline evaluation replay |
+
+### 3.4 API Overview
+
+All routes are under `/api`. Session cookie required except register and login.
+
+| Area | Routes |
+| :--- | :--- |
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/get-me`, `DELETE /auth/account` |
+| Interview reports (V1) | `POST /interview`, `GET /interview`, `GET /interview/report/:id`, `DELETE /interview/report/:id`, `POST /interview/resume/pdf/:id` (legacy) |
+| Drafts and export (V2) | `POST /v2/drafts/:reportId`, `GET /v2/drafts/:reportId`, `GET /v2/drafts/:reportId/print`, `POST /v2/drafts/:reportId/pdf`, `GET /v2/drafts/:reportId/grounded` |
+| Verification (V2) | `POST /v2/verification/:reportId`, `GET /v2/verification/:reportId`, `GET` and `PATCH /v2/verification/claim/:claimId` |
+| Jobs | `GET /v2/jobs/:id` |
+| GitHub | `GET /v2/github/connection`, `POST /v2/github/connect/start`, `GET /v2/github/connect/callback`, `GET /v2/github/repos`, `DELETE /v2/github/connection`, `POST /v2/github/analyze`, `GET /v2/github/analysis/:id` |
+| Health | `GET /v2/health`, `/health`, `/ready` |
+
+Errors use one shape: `{ message, error: { code, message, requestId } }`.
+
+---
+
 ## 4. Running Locally
 
 ### Prerequisites
@@ -151,6 +218,16 @@ Open `http://localhost:5173` in your browser.
 
 ---
 
+### Deploying (Vercel frontend + Render backend)
+
+1. **Database**: create a MongoDB Atlas cluster and allow network access from the host (Render's outbound addresses change).
+2. **Backend (Render)**: create a Docker web service from the `Backend` directory. Set `NODE_ENV=production`, `PUPPETEER_NO_SANDBOX=true`, `FRONTEND_URL` (the Vercel URL), `MONGO_URI`, `JWT_SECRET`, `GOOGLE_GENAI_API_KEY`, `REGISTRATION_OPEN` and `INVITE_CODE`, plus the four `GITHUB_APP_*` values if you use GitHub Connect. Set `TRUST_PROXY_HOPS=2` when Vercel proxies to Render.
+3. **Frontend (Vercel)**: import the repo with root directory `Frontend`, and replace `BACKEND_URL_HERE` in `Frontend/vercel.json` with the Render host. The rewrite keeps `/api` same-origin so the session cookie works.
+4. **GitHub App**: add `https://<frontend-domain>/api/v2/github/connect/callback` as a callback URL and use the same value for `GITHUB_APP_CALLBACK_URL`.
+5. Free hosting tiers sleep when idle, and Chromium may need more memory than a 512 MB instance for PDF export.
+
+---
+
 ## 5. Configuration Reference
 
 ### Backend Configuration (`Backend/.env`)
@@ -192,7 +269,7 @@ Open `http://localhost:5173` in your browser.
 ```bash
 cd Backend
 
-# Run unit and integration tests (in-memory MongoDB & ReplicaSet)
+# Run unit and integration tests (in-memory MongoDB & ReplicaSet; 584 tests, no network or Gemini calls)
 npm test
 
 # Run linter
@@ -203,7 +280,7 @@ npx oxlint src/v2 test/v2
 ```bash
 cd Frontend
 
-# Run React component and unit tests
+# Run React component and unit tests (78 tests)
 npm test
 
 # Run frontend linter
@@ -241,6 +318,8 @@ node ../evaluation/scripts/eval-runner.js --config ../evaluation/configs/ablatio
 - **Ceiling Effect**: Due to synthetic test case clarity, Ablations B, C, and D achieve identical 0.0% leak rates and identical precision on the TEST split, creating a ceiling effect where subtle differences between intermediate defenses are indistinguishable.
 - **Syntactic AST Scope**: Static AST analysis identifies declared imports, exports, functions, and method calls in JavaScript (via Acorn). It does not evaluate dynamic runtime behaviors, compiled binaries, or containerized execution.
 - **Quantitative Metrics Verification**: Static code inspection cannot verify ungrounded percentage metrics (e.g., "improved latency by 45%") without production runtime APM logs.
+- **No Real-Draft Fabrication Study Yet**: The benchmark uses synthetic cases. How often real Gemini drafts contain unsupported claims, and how well the pipeline catches them on real resumes, has not been measured.
+- **Private Repositories and Authorship**: GitHub Connect covers public repositories you own. It proves control of a repository, not authorship of its code.
 - **Free-Tier Rate Limits**: Pinned to Google Gemini Flash Lite (15 RPM / 500 RPD) to guarantee reproducible runs within free-tier quotas.
 
 ---
