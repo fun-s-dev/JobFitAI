@@ -27,6 +27,8 @@ const envSchema = z
     JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
     GOOGLE_GENAI_API_KEY: z.string().min(1, 'GOOGLE_GENAI_API_KEY is required'),
     GEMINI_MODEL: z.string().min(1).default('gemini-3.5-flash-lite'),
+    // Tried once when the main model returns 503 (overloaded). 'none' disables it.
+    GEMINI_FALLBACK_MODEL: z.string().min(1).default('gemini-3.5-flash'),
     EMBEDDING_MODEL: z.string().min(1).default('gemini-embedding-001'),
     EMBEDDING_DIMS: z.coerce.number().int().positive().default(768),
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),

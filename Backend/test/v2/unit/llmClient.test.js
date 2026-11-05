@@ -40,6 +40,7 @@ function makeFakeSdk({ generateContentResponses = [], embedContentResponses = []
 
 const testCfg = {
   GEMINI_MODEL: 'gemini-3.5-flash-lite',
+  GEMINI_FALLBACK_MODEL: 'none',
   EMBEDDING_MODEL: 'gemini-embedding-001',
   EMBEDDING_DIMS: 768,
   LLM_TIMEOUT_MS: 5000,
@@ -300,6 +301,60 @@ describe('v2 LLM Client Adapter (createLlmClient)', () => {
     expect(loggedCalls[0].ok).toBe(false);
     expect(loggedCalls[0].error).toBe('Service Unavailable');
     expect(loggedCalls[0].attempt).toBe(1);
+  });
+
+  describe('fallback model on overload', () => {
+    const fbCfg = { ...testCfg, GEMINI_FALLBACK_MODEL: 'fallback-model' };
+    const err = (status, message = 'boom') => Object.assign(new Error(message), { status });
+    const run = (sdk, cfg, logged = []) =>
+      createLlmClient({
+        genai: sdk,
+        cfg,
+        callRepo: { create: async (d) => { logged.push(d); return d; } },
+      }).generateStructured({ purpose: 'fb', system: 's', prompt: 'p', schema: testSchema });
+
+    it('uses the fallback model once after the main model returns 503 three times', async () => {
+      const logged = [];
+      const e = err(503, 'This model is currently experiencing high demand');
+      const sdk = makeFakeSdk({
+        generateContentResponses: [e, e, e, { text: JSON.stringify({ score: 70, status: 'pass' }) }],
+      });
+      const result = await run(sdk, fbCfg, logged);
+      expect(result).toEqual({ score: 70, status: 'pass' });
+      expect(sdk.generateCalls.map((c) => c.model)).toEqual([
+        'gemini-3.5-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.5-flash-lite', 'fallback-model',
+      ]);
+      expect(logged.map((l) => l.model)).toEqual(['gemini-3.5-flash-lite', 'fallback-model']);
+      expect(logged[0].ok).toBe(false);
+      expect(logged[1].ok).toBe(true);
+    });
+
+    it.each([400, 429])('does not use the fallback for HTTP %i', async (status) => {
+      const sdk = makeFakeSdk({ generateContentResponses: [err(status), err(status), err(status)] });
+      await expect(run(sdk, fbCfg)).rejects.toThrow();
+      expect(sdk.generateCalls.every((c) => c.model === 'gemini-3.5-flash-lite')).toBe(true);
+    });
+
+    it('does not use the fallback for schema failures', async () => {
+      const bad = { text: JSON.stringify({ nope: 1 }) };
+      const sdk = makeFakeSdk({ generateContentResponses: [bad, bad, bad] });
+      await expect(run(sdk, fbCfg)).rejects.toThrow(LlmValidationError);
+      expect(sdk.generateCalls.every((c) => c.model === 'gemini-3.5-flash-lite')).toBe(true);
+    });
+
+    it("'none' disables the fallback", async () => {
+      const e = err(503);
+      const sdk = makeFakeSdk({ generateContentResponses: [e, e, e] });
+      await expect(run(sdk, { ...testCfg, GEMINI_FALLBACK_MODEL: 'none' })).rejects.toThrow('boom');
+      expect(sdk.generateCalls.length).toBe(3);
+    });
+
+    it('rethrows when the fallback model also fails', async () => {
+      const e = err(503);
+      const sdk = makeFakeSdk({ generateContentResponses: [e, e, e, err(503, 'fallback down')] });
+      await expect(run(sdk, fbCfg)).rejects.toThrow('fallback down');
+      expect(sdk.generateCalls.length).toBe(4);
+    });
   });
 
   it('embed: batches texts and returns L2-normalized vectors', async () => {

@@ -133,6 +133,7 @@ flowchart TD
 - **Protection**: Zod request validation, per-route rate limits, a per-user daily report cap (`USER_DAILY_REPORTS`), a global daily AI budget, and a per-user lock that returns `409 REQUEST_IN_PROGRESS` instead of running two reports at once.
 - **Legacy PDF**: the old V1 resume-PDF download still exists and is scheduled for removal in favor of the V2 grounded export.
 - A full report takes about 30 seconds on the real API, so the V1 report client uses a 90-second timeout (`V1_REPORT_TIMEOUT_MS`).
+- If Google answers 503 "high demand" for the main model after three retries, the client tries `GEMINI_FALLBACK_MODEL` (default `gemini-3.5-flash`, slower, about 70 seconds per report) once. Set it to `none` to disable. Bad requests, quota errors and schema failures never use the fallback.
 
 ### 3.2 Retrieval and Verification Pipeline (V2)
 

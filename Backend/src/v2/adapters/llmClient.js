@@ -40,6 +40,18 @@ function createPacer(rpm) {
 
 // The quota belongs to the API key/project, not to a client object, and several parts of the app build
 // their own client. They must therefore share one embedding window per limit value.
+/**
+ * True when the provider says the MODEL is overloaded (HTTP 503 / UNAVAILABLE / "high demand"). That is
+ * a problem of the model, not of the request, so trying a different model can succeed. Bad requests, bad
+ * keys and quota errors are not overload and never trigger the fallback.
+ */
+function isModelOverloaded(err) {
+  if (!err) return false;
+  const status = err.status || err.statusCode || (err.response && err.response.status) || null;
+  if (status === 503) return true;
+  return /UNAVAILABLE|high demand|overloaded/i.test(String(err.message || ''));
+}
+
 const sharedEmbedWindows = new Map();
 function getSharedEmbedWindow(limit) {
   if (!sharedEmbedWindows.has(limit)) sharedEmbedWindows.set(limit, createWindowLimiter(limit));
@@ -60,6 +72,10 @@ function createLlmClient({
     });
 
   const model = cfg.GEMINI_MODEL || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+  // Tried once when the main model is overloaded (503). It has its own quota and is slower, so it gets
+  // a longer timeout. Set GEMINI_FALLBACK_MODEL to 'none' to disable.
+  const rawFallback = cfg.GEMINI_FALLBACK_MODEL ?? process.env.GEMINI_FALLBACK_MODEL ?? 'gemini-3.5-flash';
+  const fallbackModel = rawFallback && rawFallback !== 'none' && rawFallback !== model ? rawFallback : null;
   const embeddingModel = cfg.EMBEDDING_MODEL || process.env.EMBEDDING_MODEL || 'gemini-embedding-001';
   const embeddingDims = cfg.EMBEDDING_DIMS || 768;
   const timeoutMs = cfg.LLM_TIMEOUT_MS || 30000;
@@ -113,6 +129,7 @@ function createLlmClient({
     for (let attempt = 1; attempt <= 2; attempt++) {
       const t0 = Date.now();
       let callResult = null;
+      let usedModel = model;
 
       try {
         const config = {
@@ -129,31 +146,47 @@ function createLlmClient({
           config.thinkingConfig = { thinkingLevel };
         }
 
-        callResult = await withRetry(
-          async () => {
-            await generatePacer();
-            return withTimeout(
-              async ({ signal }) => {
-                config.abortSignal = signal;
-                return client.models.generateContent({
-                  model,
-                  contents: currentPrompt,
-                  config,
-                });
-              },
-              timeoutMs
-            );
-          },
-          {
-            retries: 2,
-            minTimeout: 500,
-            factor: 2,
-            randomize: true,
-            shouldRetry: isTransientError,
-            logger,
-            purpose,
+        const callModel = (modelName, modelTimeoutMs) =>
+          withTimeout(async ({ signal }) => {
+            config.abortSignal = signal;
+            return client.models.generateContent({
+              model: modelName,
+              contents: currentPrompt,
+              config,
+            });
+          }, modelTimeoutMs);
+
+        try {
+          callResult = await withRetry(
+            async () => {
+              await generatePacer();
+              return callModel(model, timeoutMs);
+            },
+            {
+              retries: 2,
+              minTimeout: 500,
+              factor: 2,
+              randomize: true,
+              shouldRetry: isTransientError,
+              logger,
+              purpose,
+            }
+          );
+        } catch (mainErr) {
+          if (!fallbackModel || !isModelOverloaded(mainErr)) throw mainErr;
+          // The main model is overloaded: record that attempt, then try the fallback model once
+          await logCallSafely({
+            user, runId, requestId, purpose, model, attempt,
+            ok: false, ms: Date.now() - t0, tokensIn: 0, tokensOut: 0, costEstimate: 0,
+            error: mainErr.message || 'Model overloaded',
+          });
+          if (logger && typeof logger.warn === 'function') {
+            logger.warn({ purpose, model, fallbackModel }, 'Main model overloaded; trying the fallback model once.');
           }
-        );
+          usedModel = fallbackModel;
+          await generatePacer();
+          callResult = await callModel(fallbackModel, Math.max(timeoutMs, 120000));
+        }
 
         let parsedJson;
         try {
@@ -173,7 +206,7 @@ function createLlmClient({
             runId,
             requestId,
             purpose,
-            model,
+            model: usedModel,
             attempt,
             ok: true,
             ms,
@@ -192,7 +225,7 @@ function createLlmClient({
           runId,
           requestId,
           purpose,
-          model,
+          model: usedModel,
           attempt,
           ok: false,
           ms,
@@ -214,7 +247,7 @@ function createLlmClient({
           runId,
           requestId,
           purpose,
-          model,
+          model: usedModel,
           attempt,
           ok: false,
           ms,
