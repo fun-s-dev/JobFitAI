@@ -28,7 +28,8 @@ const projectBulletsAiSchema = z.object({
 
 const SYSTEM = [
   "You are an expert technical resume writer. You write the bullets for ONE project, using only the project's own README passages as evidence.",
-  `Write exactly ${MAX_BULLETS_PER_PROJECT} bullets when the evidence supports that many (fewer only if it truly does not). Use ONLY facts that the evidence states.`,
+  `Write exactly ${MAX_BULLETS_PER_PROJECT} bullets when the evidence supports that many (fewer only if it truly does not). Some bullets may later be dropped by a fact checker, so every bullet must be independently strong. Use ONLY facts that the evidence states.`,
+  'Keep each bullet to one or two facts that the evidence states plainly, and name at most two technologies per bullet. Every fact in a bullet is checked separately against the evidence, so a bullet with many technologies or inferred details is likely to be dropped.',
   'Never add numbers, metrics, percentages, user counts, scale, performance claims, team size, or technologies that the evidence and the technology list do not state.',
   'A strong bullet has this shape: a precise past-tense action verb, then WHAT was built, then the concrete mechanism or design decision that makes it notable (HOW), then the purpose or benefit when the evidence states one.',
   'Prefer substance over decoration: features with a mechanism, safeguards, data integrity and security decisions, architecture, integrations, workflows. Never write a bullet that only lists technologies, and never start with "Developed a project" or similar filler.',

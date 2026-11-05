@@ -9,7 +9,10 @@
 const { cosineSimilarity } = require('./cosineSimilarity');
 
 const MAX_BULLET_CHARS = 320;
-const MAX_BULLETS_PER_PROJECT = 3;
+// Candidates written per project. More are written than exported because verification drops bullets
+// it cannot support; the export keeps at most MAX_EXPORTED_BULLETS_PER_PROJECT of the survivors.
+const MAX_BULLETS_PER_PROJECT = 5;
+const MAX_EXPORTED_BULLETS_PER_PROJECT = 4;
 const MAX_DISPLAY_NAME_CHARS = 100;
 
 /** "Banking-System-backend" -> "Banking System Backend". Used until the user edits the name. */
@@ -261,6 +264,7 @@ function applyGithubProjectRules({ draft, exportDraft, links }) {
     if (url) urls.set(prj.id, url);
   }
 
+  const githubProjectIds = new Set(draftProjects.filter((p) => p && p.source === 'github').map((p) => p.id));
   const techById = new Map(draftProjects.filter((p) => p && Array.isArray(p.tech)).map((p) => [p.id, p.tech]));
   const projects = (exportDraft.projects || [])
     .filter((p) => !hidden.has(p.id))
@@ -269,7 +273,12 @@ function applyGithubProjectRules({ draft, exportDraft, links }) {
       ...(names.has(p.id) ? { name: names.get(p.id) } : {}),
       ...(urls.has(p.id) ? { url: urls.get(p.id) } : {}),
       ...(p.tech === undefined && techById.has(p.id) ? { tech: techById.get(p.id) } : {}),
-    }));
+    }))
+    .map((p) =>
+      githubProjectIds.has(p.id) && Array.isArray(p.bullets)
+        ? { ...p, bullets: p.bullets.slice(0, MAX_EXPORTED_BULLETS_PER_PROJECT) }
+        : p
+    );
 
   return { exportDraft: { ...exportDraft, projects }, excludedItems };
 }
@@ -283,6 +292,7 @@ function safeRepoUrl(url) {
 module.exports = {
   MAX_BULLET_CHARS,
   MAX_BULLETS_PER_PROJECT,
+  MAX_EXPORTED_BULLETS_PER_PROJECT,
   MAX_DISPLAY_NAME_CHARS,
   defaultProjectName,
   sanitizeDisplayName,

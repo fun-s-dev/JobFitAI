@@ -129,10 +129,12 @@ describe('core/githubProjects (pure)', () => {
           ok(2),
           ok(3),
           ok(4),
+          ok(5),
+          ok(6),
         ],
         labels
       );
-      expect(out.map((b) => b.text)).toEqual(['Implemented feature number 1.', 'Implemented feature number 2.', 'Implemented feature number 3.']);
+      expect(out.map((b) => b.text)).toEqual([1, 2, 3, 4, 5].map((n) => `Implemented feature number ${n}.`));
       expect(out).toHaveLength(MAX_BULLETS_PER_PROJECT);
     });
 
@@ -338,6 +340,22 @@ describe('core/githubProjects: tech stack, repository links and project naming r
         links: [{ analysisId: 'a1', authorshipConfirmedAt: new Date(), control: { verified: true } }],
       });
       expect(out.projects[0]).toMatchObject({ url: 'https://github.com/me/x-repo', tech: ['Node.js'] });
+    });
+
+    it('exports at most 4 bullets for a GitHub project but leaves resume projects untouched', () => {
+      const bullets = [1, 2, 3, 4, 5].map((n) => ({ id: `b${n}`, text: `t${n}` }));
+      const { exportDraft: out } = applyGithubProjectRules({
+        draft: {
+          projects: [
+            { id: 'prj0', name: 'G', source: 'github', analysisId: 'a1', repoFullName: 'me/g' },
+            { id: 'prj1', name: 'R' },
+          ],
+        },
+        exportDraft: { projects: [{ id: 'prj0', name: 'G', bullets }, { id: 'prj1', name: 'R', bullets }] },
+        links: [{ analysisId: 'a1', authorshipConfirmedAt: new Date(), control: { verified: true } }],
+      });
+      expect(out.projects[0].bullets).toHaveLength(4);
+      expect(out.projects[1].bullets).toHaveLength(5);
     });
   });
 });

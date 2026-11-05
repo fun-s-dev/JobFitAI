@@ -20,6 +20,36 @@ JobFitAI has two parts that share one account system:
 
 ---
 
+## Screenshots
+
+### V1: Interview prep
+
+| Create a plan | Technical questions |
+| :---: | :---: |
+| ![Create a plan: paste a job description and upload a resume](assets/screenshots/01-create-plan.png) | ![Technical questions with intention and model answer, match score and skill gaps](assets/screenshots/02-technical-questions.png) |
+
+![Five-day preparation road map](assets/screenshots/03-roadmap.png)
+
+### V2: Grounded resume
+
+**1. Connect GitHub and rank your repositories against the job.**
+
+![GitHub connected and repositories being analysed](assets/screenshots/04-github-connect.png)
+
+![Repositories ranked by fit with the job, with the matching passages](assets/screenshots/05-ranked-projects.png)
+
+**2. Choose up to 4 projects, rename them if needed and confirm you built them.**
+
+![Selected projects with editable names and the "I built this project" confirmation](assets/screenshots/06-selected-projects.png)
+
+**3. Generate the draft, verify every claim and export only what holds up.**
+
+![Draft and verification controls with claim totals and the grounded export](assets/screenshots/07-build-and-check.png)
+
+![Every claim with its status, confidence and approve or reject actions](assets/screenshots/08-claims-and-export.png)
+
+---
+
 ## 1. Project Overview & Pitch
 
 Generative AI models excel at phrasing resume bullet points to align with job descriptions. However, standard LLM-based resume builders frequently hallucinate achievements, skills, metrics, and project contributions that the candidate never performed.
@@ -105,7 +135,7 @@ flowchart TD
 - **GitHub Connect (GitHub App user authorization)**: Sign in with GitHub (PKCE + `state`, no repository permissions requested) to prove you own a public repository, select it, and analyze it. Tokens are encrypted at rest, never sent to the browser, refreshed automatically, and revocable (Disconnect). Private repositories are not supported in this version. Pasting a repository URL is not supported: repositories can only be added through GitHub Connect.
 - **Complete Grounded Export**: Besides claim-checked bullets, the exported resume includes name, contact details, skills and education only when they appear in your resume; the AI-written summary is left out. Every dropped item is listed with a reason.
 - **Best Projects for a Job**: after connecting GitHub, a background job analyses up to 15 of your public repositories (static analysis, nothing executed), skips any without a README and tells you so, extracts the job's requirements with one Gemini call, embeds the requirements and each repository's README, description and technology stack, and ranks the repositories by how well they cover what the job asks for. You see a strong/partial/weak match level and the actual passages that matched, then confirm or swap up to 4 projects. The scale was calibrated on real `gemini-embedding-001` vectors (unrelated text still scores about 0.8 cosine) using a small sample, so treat the levels as a guide.
-- **GitHub Projects (retrieval before generation)**: once you confirm your best projects, `Generate Resume Draft` writes the Projects section from those repositories. For each one, the most relevant README passages for the job are retrieved, and the model writes 2-3 bullets from only those passages, citing them; it is told not to add numbers, metrics or technologies the README does not state, and a bullet that cites nothing real is dropped. Each bullet is then verified against the same repository's passages, never against your resume. You can rename a project, and it is only exported after you confirm `I built this project` (owning a repository does not show you wrote its code). Because the bullets are written from the same text they are checked against, verification here tests faithfulness to the README, not independent truth.
+- **GitHub Projects (retrieval before generation)**: once you confirm your best projects, `Generate Resume Draft` writes the Projects section from those repositories. For each one, the most relevant README passages for the job are retrieved, and the model writes 5 candidate bullets from only those passages, citing them (verification drops the ones it cannot support, and the export keeps up to 4 verified bullets per project, so a project normally shows 3 or 4; a project whose README supports fewer claims shows fewer, because unsupported bullets are never exported); it is told not to add numbers, metrics or technologies the README does not state, and a bullet that cites nothing real is dropped. Each bullet is then verified against the same repository's passages, never against your resume. You can rename a project, and it is only exported after you confirm `I built this project` (owning a repository does not show you wrote its code). Because the bullets are written from the same text they are checked against, verification here tests faithfulness to the README, not independent truth.
 - **Links, Certifications and CGPA kept**: when you upload a PDF, its clickable labels (LinkedIn, GitHub, certificate links) are read together with their hidden URLs, and its Certifications / Achievements list and CGPA are copied word for word. They appear in the exported resume as real hyperlinks and text, written by code and never by the AI, so nothing can be invented. Only web (http/https) links are ever rendered as links.
 - **Project naming**: a project heading such as `JobFitAI | React, Node.js` is split into a name and a technology list, and a technology the resume never mentions is dropped from the export. You can give any project tied to one of your repositories a different name; it is applied to the printed resume, together with a link to the repository.
 - **Data Deletion**: Delete a plan (with its drafts, claims and jobs) or your whole account and all its data from the UI.
@@ -260,6 +290,9 @@ Open `http://localhost:5173` in your browser.
 | `USER_DAILY_REPORTS`, `USER_DAILY_GITHUB_ANALYSES` | `10`, `20` | Per-user daily caps for AI report requests and GitHub analyses |
 | `RATE_LIMIT_*` | see `.env.example` | Per-window limits for login, sign-up, reports, exports and GitHub requests |
 | `USER_DAILY_RANKINGS`, `RANKING_MAX_REPOS`, `RANKING_TOP_N` | `5`, `15`, `4` | Project ranking: daily runs per user, repositories analysed per run, projects that can be selected |
+| `GEMINI_FALLBACK_MODEL` | `gemini-3.5-flash` | Tried once when the main model keeps returning 503 overload. `none` disables it |
+| `V1_REPORT_TIMEOUT_MS` | `90000` | Timeout for the V1 interview report call |
+| `LLM_EMBED_TEXTS_PER_MIN` | `90` | Embedding texts allowed per minute (free tier allows 100) |
 | `JOB_RETENTION_DAYS` | `30` | Finished background jobs are deleted automatically after this many days |
 
 ### Frontend Configuration (`Frontend/.env`)
@@ -277,7 +310,7 @@ Open `http://localhost:5173` in your browser.
 ```bash
 cd Backend
 
-# Run unit and integration tests (in-memory MongoDB & ReplicaSet; 584 tests, no network or Gemini calls)
+# Run unit and integration tests (in-memory MongoDB & ReplicaSet; 805 tests, no network or Gemini calls)
 npm test
 
 # Run linter
@@ -288,7 +321,7 @@ npx oxlint src/v2 test/v2
 ```bash
 cd Frontend
 
-# Run React component and unit tests (78 tests)
+# Run React component and unit tests (123 tests)
 npm test
 
 # Run frontend linter

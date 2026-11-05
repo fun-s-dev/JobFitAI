@@ -237,7 +237,8 @@ describe('projectDraft.service', () => {
     const system = ctx.llmClient.generateStructured.mock.calls[0][0].system;
     expect(system).toMatch(/Never write a bullet that only lists technologies/);
     expect(system).toMatch(/Put the aspect most relevant to the job requirements FIRST/);
-    expect(system).toMatch(/exactly 3 bullets/);
+    expect(system).toMatch(/exactly 5 bullets/);
+    expect(system).toMatch(/at most two technologies per bullet/);
     expect(system).toMatch(/the concrete mechanism or design decision/);
   });
 
